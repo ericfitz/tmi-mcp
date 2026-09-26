@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -66,6 +67,37 @@ func TestCorruptFileTreatedAsEmpty(t *testing.T) {
 	got, err := (&Store{Dir: dir}).Load("p")
 	if err != nil || got != nil {
 		t.Fatalf("want nil,nil got %v %v", got, err)
+	}
+}
+
+func TestDeleteRemovesFallbackFileWhenKeychainUnavailable(t *testing.T) {
+	keyring.MockInitWithError(errors.New("no keychain"))
+	dir := t.TempDir()
+	s := &Store{Dir: dir}
+	if err := s.Save("p", sample()); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Delete("p"); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "p.json")); !os.IsNotExist(err) {
+		t.Fatalf("want file gone, stat err = %v", err)
+	}
+}
+
+func TestLoadUnreadableFileReturnsErrorWithPath(t *testing.T) {
+	keyring.MockInitWithError(errors.New("no keychain"))
+	dir := t.TempDir()
+	path := filepath.Join(dir, "p.json")
+	if err := os.Mkdir(path, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	got, err := (&Store{Dir: dir}).Load("p")
+	if got != nil {
+		t.Fatalf("want nil tokens, got %+v", got)
+	}
+	if err == nil || !strings.Contains(err.Error(), path) {
+		t.Fatalf("want error containing %q, got %v", path, err)
 	}
 }
 

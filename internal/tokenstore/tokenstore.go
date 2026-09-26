@@ -4,7 +4,6 @@ package tokenstore
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -46,31 +45,35 @@ func (s *Store) filePath(profile string) string {
 }
 
 // Load returns the stored tokens for profile, or (nil, nil) if none are
-// stored or the stored data is unreadable/corrupt.
+// stored or the stored data is corrupt.
 func (s *Store) Load(profile string) (*Tokens, error) {
 	data, err := keyring.Get(keychainService, profile)
 	if err == nil {
-		return parseTokens([]byte(data))
+		return parseTokens([]byte(data), "keychain")
 	}
 	// keyring.ErrNotFound or any other keychain error: fall back to file.
 	return s.loadFile(profile)
 }
 
 func (s *Store) loadFile(profile string) (*Tokens, error) {
-	data, err := os.ReadFile(s.filePath(profile))
+	path := s.filePath(profile)
+	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, nil
 		}
-		return nil, nil
+		return nil, fmt.Errorf("read token file %s: %w", path, err)
 	}
-	return parseTokens(data)
+	return parseTokens(data, path)
 }
 
-func parseTokens(data []byte) (*Tokens, error) {
+// parseTokens parses stored token JSON. On corrupt data it warns to stderr
+// naming source (a file path or "keychain", never token values) and returns
+// (nil, nil) so the caller treats it as absent.
+func parseTokens(data []byte, source string) (*Tokens, error) {
 	var t Tokens
 	if err := json.Unmarshal(data, &t); err != nil {
-		fmt.Fprintln(os.Stderr, "tmi-mcp: stored tokens are corrupt, ignoring")
+		fmt.Fprintf(os.Stderr, "tmi-mcp: stored tokens in %s are corrupt, ignoring\n", source)
 		return nil, nil
 	}
 	return &t, nil
@@ -118,11 +121,12 @@ func (s *Store) saveFile(profile string, data []byte) error {
 }
 
 // Delete removes profile's tokens from both the keychain and the fallback
-// file, ignoring "not found" in either location.
+// file. Keychain errors (including "not found" or an unavailable keychain)
+// are ignored, matching Load/Save's treatment of the keychain as optional;
+// the file removal is always attempted, and only a non-"not found" file
+// error is returned.
 func (s *Store) Delete(profile string) error {
-	if err := keyring.Delete(keychainService, profile); err != nil && !errors.Is(err, keyring.ErrNotFound) {
-		return err
-	}
+	_ = keyring.Delete(keychainService, profile)
 	if err := os.Remove(s.filePath(profile)); err != nil && !os.IsNotExist(err) {
 		return err
 	}
