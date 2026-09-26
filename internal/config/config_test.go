@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -74,6 +75,28 @@ func TestLoadValidatesProfiles(t *testing.T) {
 	_, err = Load(write(t, "default_profile: y\nprofiles:\n  x:\n    server: http://a\n"))
 	if err == nil || !strings.Contains(err.Error(), "default_profile") {
 		t.Fatalf("want bad default error, got %v", err)
+	}
+}
+
+func TestLoadValidCallbackPort(t *testing.T) {
+	c, err := Load(write(t, "default_profile: p\nprofiles:\n  p:\n    server: https://api.tmi.dev\n    callback_port: 8765\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := c.Resolve("")
+	if err != nil || p.CallbackPort != 8765 {
+		t.Fatalf("got %+v %v", p, err)
+	}
+}
+
+func TestLoadRejectsBadCallbackPort(t *testing.T) {
+	for _, port := range []int{80, 70000} {
+		body := fmt.Sprintf("default_profile: p\nprofiles:\n  p:\n    server: https://api.tmi.dev\n    callback_port: %d\n", port)
+		path := write(t, body)
+		_, err := Load(path)
+		if err == nil || !strings.Contains(err.Error(), path) || !strings.Contains(err.Error(), "p") {
+			t.Fatalf("port %d: got %v", port, err)
+		}
 	}
 }
 

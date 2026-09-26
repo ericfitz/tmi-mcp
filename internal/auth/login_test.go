@@ -6,7 +6,9 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -20,10 +22,11 @@ import (
 
 type fakeTMI struct {
 	*httptest.Server
-	challenge  string
-	rejectCB   bool
-	denied     bool
-	tokenCalls atomic.Int32
+	challenge   string
+	rejectCB    bool
+	denied      bool
+	tokenCalls  atomic.Int32
+	gotCallback string
 }
 
 func newFake(t *testing.T) *fakeTMI {
@@ -42,6 +45,7 @@ func newFake(t *testing.T) *fakeTMI {
 		}
 		f.challenge = q.Get("code_challenge")
 		cb := q.Get("client_callback")
+		f.gotCallback = cb
 		if f.denied {
 			http.Redirect(w, r, cb+"?error=access_denied&state="+url.QueryEscape(q.Get("state")), http.StatusFound)
 			return
@@ -288,6 +292,59 @@ func TestRefresh(t *testing.T) {
 	var ae *APIError
 	if err == nil || !asAPI(err, &ae) || ae.Status != 401 {
 		t.Fatalf("want APIError 401, got %v", err)
+	}
+}
+
+// freePort returns a port that is free at the time of the call by briefly
+// listening on :0 and closing it.
+func freePort(t *testing.T) int {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	port := ln.Addr().(*net.TCPAddr).Port
+	if err := ln.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return port
+}
+
+func TestLoginFixedCallbackPort(t *testing.T) {
+	f := newFake(t)
+	browserFollows(t)
+	port := freePort(t)
+	tok, err := Login(context.Background(), config.Profile{Name: "local", Server: f.URL, CallbackPort: port}, func(string) {})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tok.AccessToken != "AT" {
+		t.Fatalf("%+v", tok)
+	}
+	want := fmt.Sprintf("http://127.0.0.1:%d/callback", port)
+	if f.gotCallback != want {
+		t.Fatalf("client_callback = %q, want %q", f.gotCallback, want)
+	}
+}
+
+func TestLoginBusyCallbackPortFails(t *testing.T) {
+	f := newFake(t)
+	port := freePort(t)
+	held, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = held.Close() }()
+
+	OpenBrowser = func(string) error { t.Fatal("browser must not open"); return nil }
+	t.Cleanup(func() { OpenBrowser = defaultOpenBrowser })
+
+	_, err = Login(context.Background(), config.Profile{Name: "p", Server: f.URL, CallbackPort: port}, func(string) {})
+	if err == nil ||
+		!strings.Contains(err.Error(), fmt.Sprintf("127.0.0.1:%d", port)) ||
+		!strings.Contains(err.Error(), "profile p") ||
+		!strings.Contains(err.Error(), "callback_port") {
+		t.Fatalf("got %v", err)
 	}
 }
 

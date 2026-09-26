@@ -29,18 +29,29 @@ profiles:
     server: http://localhost:8080
     idp: tmi
     login_hint: alice
+    callback_port: 8765
 ```
 
 `--profile` overrides `default_profile` for the process; any tool call can
-also override both with its own `profile` argument.
+also override both with its own `profile` argument. `callback_port` (1024-65535,
+optional) pins the OAuth loopback listener to that port instead of a random
+one; leave it unset unless the server prerequisite below requires it.
 
 ### Server prerequisite
 
 Each target TMI server must allow the loopback OAuth callback tmi-mcp uses
-for login. Add `http://127.0.0.1:*` (the trailing `*` is a prefix wildcard
-covering any port) to that server's `auth.oauth.client_callback_allowlist`
-config, or set env `TMI_OAUTH_CLIENT_CALLBACK_ALLOWLIST` on it. Without this,
-login fails fast with an allowlist error naming the missing entry.
+for login, via that server's `auth.oauth.client_callback_allowlist` config (or
+env `TMI_OAUTH_CLIENT_CALLBACK_ALLOWLIST`). TMI's allowlist matcher is a raw
+string-prefix check, so there are two options:
+
+- Set `callback_port: 8765` (or any fixed port) on the profile and add
+  `http://127.0.0.1:8765/*` to the allowlist. Safe with the current matcher.
+- Do **not** use the wildcard-port form `http://127.0.0.1:*` — with a prefix
+  matcher it also matches `http://127.0.0.1:1@evil.example/...`. Avoid it
+  until TMI's matcher parses URLs instead of prefix-matching strings.
+
+Without an allowlist entry, login fails fast with an error naming the missing
+entry.
 
 The `tmi` identity provider (`idp: tmi`) is dev-only — it exists for local
 TMI servers and test users like `login_hint: alice`, not production.

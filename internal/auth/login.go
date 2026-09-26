@@ -67,8 +67,16 @@ func errorPage(errVal, desc string) string {
 func Login(ctx context.Context, p config.Profile, notify func(msg string)) (*tokenstore.Tokens, error) {
 	server := strings.TrimRight(p.Server, "/")
 
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	addr := "127.0.0.1:0"
+	if p.CallbackPort != 0 {
+		addr = fmt.Sprintf("127.0.0.1:%d", p.CallbackPort)
+	}
+	ln, err := net.Listen("tcp", addr)
 	if err != nil {
+		if p.CallbackPort != 0 {
+			return nil, fmt.Errorf("cannot listen on %s for the login callback (profile %s): %w; free the port or change callback_port",
+				addr, p.Name, err)
+		}
 		return nil, fmt.Errorf("start loopback listener: %w", err)
 	}
 	port := ln.Addr().(*net.TCPAddr).Port

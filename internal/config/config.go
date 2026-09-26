@@ -13,10 +13,11 @@ import (
 )
 
 type Profile struct {
-	Name      string `yaml:"-"`
-	Server    string `yaml:"server"`
-	IDP       string `yaml:"idp"`
-	LoginHint string `yaml:"login_hint"`
+	Name         string `yaml:"-"`
+	Server       string `yaml:"server"`
+	IDP          string `yaml:"idp"`
+	LoginHint    string `yaml:"login_hint"`
+	CallbackPort int    `yaml:"callback_port"`
 }
 
 type Config struct {
@@ -53,6 +54,10 @@ func Load(path string) (*Config, error) {
 	for name, p := range c.Profiles {
 		if p.Server == "" {
 			return nil, fmt.Errorf("config %s: profile %q has no server", path, name)
+		}
+		if p.CallbackPort != 0 && (p.CallbackPort < 1024 || p.CallbackPort > 65535) {
+			return nil, fmt.Errorf("config %s: profile %q has invalid callback_port %d (must be 1024-65535)",
+				path, name, p.CallbackPort)
 		}
 	}
 	if _, ok := c.Profiles[c.DefaultProfile]; !ok {

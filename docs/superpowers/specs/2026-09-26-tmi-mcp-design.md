@@ -35,6 +35,10 @@ These were decided by the user (Eric Fitzgerald) during brainstorming on
 6. **Action set trimmed:** threat models get no delete/restore; update and patch
    collapse into one `update` action everywhere; no restore or bulk actions; no
    metadata bulk upsert.
+7. **Optional fixed callback port per profile** (`callback_port`), decided
+   2026-09-26 after the TMI allowlist prefix-matcher issue: a wildcard-port
+   loopback entry is unsafe with TMI's current matcher, while a fixed-port
+   entry with a trailing slash is safe.
 
 Transport (stdio) and language (Go, wrapping the generated client) were given
 in the original request.
@@ -68,11 +72,14 @@ profiles:
     server: http://localhost:8080
     idp: tmi
     login_hint: alice
+    callback_port: 8765
 ```
 
 `--profile` overrides `default_profile` for the process. A tool's `profile`
 argument overrides both for that call. An unknown profile is a tool error that
-lists the configured profile names.
+lists the configured profile names. `callback_port` (1024-65535, optional)
+pins the OAuth loopback listener to a fixed port instead of a random one (see
+Server prerequisite).
 
 ### Go client dependency
 
@@ -96,7 +103,8 @@ A per-profile mutex makes concurrent tool calls share one refresh or login.
 
 ### Interactive login (PKCE loopback)
 
-1. Listen on `127.0.0.1:0` (random free port).
+1. Listen on `127.0.0.1:0` (random free port), or `127.0.0.1:{callback_port}`
+   when the profile sets one.
 2. Generate a PKCE verifier (32 random bytes, base64url), its S256 challenge,
    and a random `state`.
 3. Open in the system browser (`open` / `xdg-open` / `rundll32
@@ -120,10 +128,13 @@ A per-profile mutex makes concurrent tool calls share one refresh or login.
 ### Server prerequisite
 
 TMI rejects any `client_callback` not in `auth.oauth.client_callback_allowlist`
-(empty list means reject all). Each target server must allow
-`http://127.0.0.1:*` (the trailing `*` is a prefix wildcard, covering any port).
-When authorize fails for this reason, the tool error names the setting and the
-exact entry to add.
+(empty list means reject all), and the allowlist matcher is a raw
+string-prefix check. Set `callback_port` on the profile and add
+`http://127.0.0.1:{callback_port}/*` to the allowlist — safe with a
+prefix matcher. Do not use the wildcard-port form `http://127.0.0.1:*`: with
+a prefix matcher it also matches `http://127.0.0.1:1@evil.example/...`; avoid
+it until TMI's matcher parses URLs instead of prefix-matching strings. When
+authorize fails for an allowlist reason, the tool error names the setting.
 
 ### Logout
 
