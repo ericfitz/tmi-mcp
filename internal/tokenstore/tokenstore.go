@@ -99,6 +99,9 @@ func (s *Store) saveFile(profile string, data []byte) error {
 	if err := os.MkdirAll(s.Dir, 0o700); err != nil {
 		return err
 	}
+	if err := os.Chmod(s.Dir, 0o700); err != nil { // tighten a pre-existing, looser directory
+		return err
+	}
 	tmp, err := os.CreateTemp(s.Dir, ".tmp-*")
 	if err != nil {
 		return err

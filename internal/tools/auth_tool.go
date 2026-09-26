@@ -72,7 +72,7 @@ func registerAuth(s *mcp.Server, d *Deps) {
 			return nil, map[string]any{"default": def.Name, "profiles": profiles}, nil
 
 		default:
-			return nil, nil, fmt.Errorf("unknown auth action %q", in.Action)
+			return nil, nil, fmt.Errorf("unknown auth action %q; valid actions: login, logout, whoami, list_profiles", in.Action)
 		}
 	})
 }

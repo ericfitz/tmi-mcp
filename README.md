@@ -15,7 +15,9 @@ go install github.com/ericfitz/tmi-mcp/cmd/tmi-mcp@latest
 
 ## Configure
 
-Create `~/.config/tmi-mcp/config.yaml` (override with `--config`):
+Create `~/.config/tmi-mcp/config.yaml` (override with `--config`). This path
+honors `XDG_CONFIG_HOME` (`$XDG_CONFIG_HOME/tmi-mcp/config.yaml`), as does the
+token fallback directory below.
 
 ```yaml
 default_profile: prod
@@ -94,8 +96,8 @@ unavailable, tokens fall back to `~/.config/tmi-mcp/tokens/<profile>.json`
 ## Development
 
 ```sh
-make build   # go build -o bin/tmi-mcp ./cmd/tmi-mcp
-make test    # go test ./...
-make lint    # golangci-lint run ./...
-make test-integration   # go test -tags integration ./...; needs TMI_MCP_INTEGRATION_SERVER
+make build             # go build -o bin/tmi-mcp ./cmd/tmi-mcp
+make test              # go test -timeout 120s ./...
+make lint              # golangci-lint run ./...
+make test-integration   # go test -tags integration -timeout 300s ./...; needs TMI_MCP_INTEGRATION_SERVER
 ```

@@ -2,6 +2,7 @@
 package config
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -41,7 +42,9 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("read config %s: %w", path, err)
 	}
 	var c Config
-	if err := yaml.Unmarshal(b, &c); err != nil {
+	dec := yaml.NewDecoder(bytes.NewReader(b))
+	dec.KnownFields(true)
+	if err := dec.Decode(&c); err != nil {
 		return nil, fmt.Errorf("parse config %s: %w", path, err)
 	}
 	if len(c.Profiles) == 0 {

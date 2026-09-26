@@ -77,6 +77,14 @@ func TestLoadValidatesProfiles(t *testing.T) {
 	}
 }
 
+func TestLoadRejectsUnknownFieldMentionsPath(t *testing.T) {
+	p := write(t, "default_profile: prod\nprofiles:\n  prod:\n    server: https://api.tmi.dev\n    login-hint: alice\n")
+	_, err := Load(p)
+	if err == nil || !strings.Contains(err.Error(), p) {
+		t.Fatalf("got %v", err)
+	}
+}
+
 func TestDirHonorsXDG(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", "/tmp/xdg")
 	d, err := Dir()

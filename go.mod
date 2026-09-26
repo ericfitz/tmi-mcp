@@ -1,6 +1,6 @@
 module github.com/ericfitz/tmi-mcp
 
-go 1.27.1
+go 1.27
 
 require (
 	github.com/ericfitz/tmi-clients/go-client-generated/v1_15_0 v0.0.0-20260926182318-0e6a703f28ba

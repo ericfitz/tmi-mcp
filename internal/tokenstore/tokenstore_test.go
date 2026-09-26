@@ -60,6 +60,25 @@ func TestFileFallbackPermissions(t *testing.T) {
 	}
 }
 
+// TestSaveTightensExistingLooseDir checks Save chmods the token dir to 0700
+// even when it already existed with looser permissions (os.MkdirAll alone
+// leaves an existing directory's mode untouched).
+func TestSaveTightensExistingLooseDir(t *testing.T) {
+	keyring.MockInitWithError(errors.New("no keychain"))
+	dir := filepath.Join(t.TempDir(), "tokens")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	s := &Store{Dir: dir}
+	if err := s.Save("p", sample()); err != nil {
+		t.Fatal(err)
+	}
+	di, err := os.Stat(dir)
+	if err != nil || di.Mode().Perm() != 0o700 {
+		t.Fatalf("dir mode = %v, err = %v", di.Mode().Perm(), err)
+	}
+}
+
 func TestCorruptFileTreatedAsEmpty(t *testing.T) {
 	keyring.MockInitWithError(errors.New("no keychain"))
 	dir := t.TempDir()

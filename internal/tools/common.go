@@ -158,7 +158,7 @@ func rawOnDecodeErr(v any, resp *http.Response, err error) (any, *http.Response,
 func hintFor(status int) string {
 	switch status {
 	case 401:
-		return "authentication failed after retry; run the auth tool with action=login"
+		return "authentication failed; run the auth tool with action=login"
 	case 403:
 		return "you do not have access to this resource"
 	case 404:
@@ -188,7 +188,11 @@ func toolErr(err error) error {
 
 	errName := body.Error
 	if errName == "" {
-		errName = strings.TrimSpace(string(ae.Body))
+		raw := ae.Body
+		if len(raw) > 500 {
+			raw = raw[:500]
+		}
+		errName = strings.TrimSpace(string(raw))
 	}
 	desc := body.ErrorDescription
 	if desc == "" {
