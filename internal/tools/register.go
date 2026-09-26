@@ -19,4 +19,5 @@ func Register(s *mcp.Server, d *Deps) {
 	registerDocuments(s, d)
 	registerNotes(s, d)
 	registerRepositories(s, d)
+	registerMetadata(s, d)
 }
