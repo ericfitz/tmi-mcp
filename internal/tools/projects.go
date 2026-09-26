@@ -2,7 +2,6 @@ package tools
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -32,85 +31,24 @@ type orgOps struct {
 	del    func(ctx context.Context, c *tmi.APIClient, id string) (*http.Response, error)
 }
 
-// addOrgTool registers a tool named name that dispatches OrgInput.Action to ops.
+// addOrgTool registers a tool named name that dispatches OrgInput.Action to
+// ops via the shared dispatch (dispatch.go). Unlike addSubTool, it binds no
+// scoping ID: projects and teams are top-level resources.
 func addOrgTool(s *mcp.Server, d *Deps, name, description string, ops orgOps) {
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        name,
 		Description: description,
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in OrgInput) (*mcp.CallToolResult, any, error) {
-		switch in.Action {
-		case "list":
-			v, err := d.call(ctx, req, in.Profile, func(ctx context.Context, c *tmi.APIClient) (any, *http.Response, error) {
+		bound := boundOps{
+			list: func(ctx context.Context, c *tmi.APIClient) (any, *http.Response, error) {
 				return ops.list(ctx, c, in)
-			})
-			if err != nil {
-				return nil, nil, toolErr(err)
-			}
-			out, err := compactList(v)
-			if err != nil {
-				return nil, nil, toolErr(err)
-			}
-			return nil, out, nil
-
-		case "get":
-			if err := need(in.Action, "id", in.ID); err != nil {
-				return nil, nil, toolErr(err)
-			}
-			v, err := d.call(ctx, req, in.Profile, func(ctx context.Context, c *tmi.APIClient) (any, *http.Response, error) {
-				return ops.get(ctx, c, in.ID)
-			})
-			if err != nil {
-				return nil, nil, toolErr(err)
-			}
-			return nil, v, nil
-
-		case "create":
-			if len(in.Fields) == 0 {
-				return nil, nil, toolErr(errRequiresFields(in.Action))
-			}
-			v, err := d.call(ctx, req, in.Profile, func(ctx context.Context, c *tmi.APIClient) (any, *http.Response, error) {
-				return ops.create(ctx, c, in.Fields)
-			})
-			if err != nil {
-				return nil, nil, toolErr(err)
-			}
-			return nil, v, nil
-
-		case "update":
-			if err := need(in.Action, "id", in.ID); err != nil {
-				return nil, nil, toolErr(err)
-			}
-			if len(in.Fields) == 0 {
-				return nil, nil, toolErr(errRequiresFields(in.Action))
-			}
-			patchDocs, err := patchOps(in.Fields)
-			if err != nil {
-				return nil, nil, toolErr(err)
-			}
-			v, err := d.call(ctx, req, in.Profile, func(ctx context.Context, c *tmi.APIClient) (any, *http.Response, error) {
-				return ops.patch(ctx, c, in.ID, patchDocs)
-			})
-			if err != nil {
-				return nil, nil, toolErr(err)
-			}
-			return nil, v, nil
-
-		case "delete":
-			if err := need(in.Action, "id", in.ID); err != nil {
-				return nil, nil, toolErr(err)
-			}
-			_, err := d.call(ctx, req, in.Profile, func(ctx context.Context, c *tmi.APIClient) (any, *http.Response, error) {
-				resp, err := ops.del(ctx, c, in.ID)
-				return nil, resp, err
-			})
-			if err != nil {
-				return nil, nil, toolErr(err)
-			}
-			return nil, map[string]any{"deleted": in.ID}, nil
-
-		default:
-			return nil, nil, fmt.Errorf("unknown action %q; valid actions: list, get, create, update, delete", in.Action)
+			},
+			get:    ops.get,
+			create: ops.create,
+			patch:  ops.patch,
+			del:    ops.del,
 		}
+		return dispatch(ctx, req, d, in.Action, in.Profile, in.ID, in.Fields, bound)
 	})
 }
 

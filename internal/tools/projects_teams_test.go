@@ -51,6 +51,17 @@ func TestProjectsListWithNameCompactsQuery(t *testing.T) {
 	if !ok || m["total"] != float64(1) {
 		t.Fatalf("result = %v", v)
 	}
+	projects, ok := m["projects"].([]any)
+	if !ok || len(projects) != 1 {
+		t.Fatalf("projects = %v", m["projects"])
+	}
+	item, ok := projects[0].(map[string]any)
+	if !ok {
+		t.Fatalf("item = %v", projects[0])
+	}
+	if _, present := item["created_at"]; present {
+		t.Fatalf("created_at should have been dropped by compactList: %v", item)
+	}
 }
 
 func TestTeamsUpdateSendsPatch(t *testing.T) {

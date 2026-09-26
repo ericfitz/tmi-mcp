@@ -122,6 +122,7 @@ func TestMetadataDeleteAssetHitsAssetMetadataPath(t *testing.T) {
 func TestMetadataSetFallsBackToCreateOn404(t *testing.T) {
 	var gotMethods []string
 	var gotPaths []string
+	var gotCreateBody map[string]any
 	cs := harness(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotMethods = append(gotMethods, r.Method)
 		gotPaths = append(gotPaths, r.URL.Path)
@@ -131,6 +132,7 @@ func TestMetadataSetFallsBackToCreateOn404(t *testing.T) {
 			_, _ = w.Write([]byte(`{"error":"not_found","error_description":"Metadata not found"}`))
 			return
 		}
+		_ = json.NewDecoder(r.Body).Decode(&gotCreateBody)
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(metadataJSON))
 	}))
@@ -150,5 +152,8 @@ func TestMetadataSetFallsBackToCreateOn404(t *testing.T) {
 	}
 	if gotPaths[0] != "/threat_models/TM/metadata/k" || gotPaths[1] != "/threat_models/TM/metadata" {
 		t.Fatalf("paths = %v", gotPaths)
+	}
+	if gotCreateBody["key"] != "k" || gotCreateBody["value"] != "v" {
+		t.Fatalf("create body = %v", gotCreateBody)
 	}
 }

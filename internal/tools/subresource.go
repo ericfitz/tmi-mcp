@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"sort"
-	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -34,23 +32,14 @@ type subOps struct {
 	extra map[string]func(ctx context.Context, c *tmi.APIClient, in SubInput) (any, *http.Response, error)
 }
 
-// validActions lists ops' supported actions, for the unknown-action error.
-func validActions(ops subOps) string {
-	actions := []string{"list", "get", "create", "update", "delete"}
-	extras := make([]string, 0, len(ops.extra))
-	for k := range ops.extra {
-		extras = append(extras, k)
-	}
-	sort.Strings(extras)
-	return strings.Join(append(actions, extras...), ", ")
-}
-
 // errRequiresFields reports that action needs a non-empty fields map.
 func errRequiresFields(action string) error {
 	return fmt.Errorf("action %q requires fields", action)
 }
 
-// addSubTool registers a tool named name that dispatches SubInput.Action to ops.
+// addSubTool registers a tool named name that dispatches SubInput.Action to
+// ops. It validates threat_model_id first, then binds it into every
+// closure and hands off to the shared dispatch (dispatch.go).
 func addSubTool(s *mcp.Server, d *Deps, name, description string, ops subOps) {
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        name,
@@ -60,91 +49,32 @@ func addSubTool(s *mcp.Server, d *Deps, name, description string, ops subOps) {
 			return nil, nil, toolErr(err)
 		}
 
-		switch in.Action {
-		case "list":
-			v, err := d.call(ctx, req, in.Profile, func(ctx context.Context, c *tmi.APIClient) (any, *http.Response, error) {
+		bound := boundOps{
+			list: func(ctx context.Context, c *tmi.APIClient) (any, *http.Response, error) {
 				return ops.list(ctx, c, in)
-			})
-			if err != nil {
-				return nil, nil, toolErr(err)
-			}
-			out, err := compactList(v)
-			if err != nil {
-				return nil, nil, toolErr(err)
-			}
-			return nil, out, nil
-
-		case "get":
-			if err := need(in.Action, "id", in.ID); err != nil {
-				return nil, nil, toolErr(err)
-			}
-			v, err := d.call(ctx, req, in.Profile, func(ctx context.Context, c *tmi.APIClient) (any, *http.Response, error) {
-				return ops.get(ctx, c, in.ThreatModelID, in.ID)
-			})
-			if err != nil {
-				return nil, nil, toolErr(err)
-			}
-			return nil, v, nil
-
-		case "create":
-			if len(in.Fields) == 0 {
-				return nil, nil, toolErr(errRequiresFields(in.Action))
-			}
-			v, err := d.call(ctx, req, in.Profile, func(ctx context.Context, c *tmi.APIClient) (any, *http.Response, error) {
-				return ops.create(ctx, c, in.ThreatModelID, in.Fields)
-			})
-			if err != nil {
-				return nil, nil, toolErr(err)
-			}
-			return nil, v, nil
-
-		case "update":
-			if err := need(in.Action, "id", in.ID); err != nil {
-				return nil, nil, toolErr(err)
-			}
-			if len(in.Fields) == 0 {
-				return nil, nil, toolErr(errRequiresFields(in.Action))
-			}
-			patchDocs, err := patchOps(in.Fields)
-			if err != nil {
-				return nil, nil, toolErr(err)
-			}
-			v, err := d.call(ctx, req, in.Profile, func(ctx context.Context, c *tmi.APIClient) (any, *http.Response, error) {
-				return ops.patch(ctx, c, in.ThreatModelID, in.ID, patchDocs)
-			})
-			if err != nil {
-				return nil, nil, toolErr(err)
-			}
-			return nil, v, nil
-
-		case "delete":
-			if err := need(in.Action, "id", in.ID); err != nil {
-				return nil, nil, toolErr(err)
-			}
-			_, err := d.call(ctx, req, in.Profile, func(ctx context.Context, c *tmi.APIClient) (any, *http.Response, error) {
-				resp, err := ops.del(ctx, c, in.ThreatModelID, in.ID)
-				return nil, resp, err
-			})
-			if err != nil {
-				return nil, nil, toolErr(err)
-			}
-			return nil, map[string]any{"deleted": in.ID}, nil
-
-		default:
-			extra, ok := ops.extra[in.Action]
-			if !ok {
-				return nil, nil, fmt.Errorf("unknown action %q; valid actions: %s", in.Action, validActions(ops))
-			}
-			if err := need(in.Action, "id", in.ID); err != nil {
-				return nil, nil, toolErr(err)
-			}
-			v, err := d.call(ctx, req, in.Profile, func(ctx context.Context, c *tmi.APIClient) (any, *http.Response, error) {
-				return extra(ctx, c, in)
-			})
-			if err != nil {
-				return nil, nil, toolErr(err)
-			}
-			return nil, v, nil
+			},
+			get: func(ctx context.Context, c *tmi.APIClient, id string) (any, *http.Response, error) {
+				return ops.get(ctx, c, in.ThreatModelID, id)
+			},
+			create: func(ctx context.Context, c *tmi.APIClient, fields map[string]any) (any, *http.Response, error) {
+				return ops.create(ctx, c, in.ThreatModelID, fields)
+			},
+			patch: func(ctx context.Context, c *tmi.APIClient, id string, patchDocs []tmi.JsonPatchDocumentInner) (any, *http.Response, error) {
+				return ops.patch(ctx, c, in.ThreatModelID, id, patchDocs)
+			},
+			del: func(ctx context.Context, c *tmi.APIClient, id string) (*http.Response, error) {
+				return ops.del(ctx, c, in.ThreatModelID, id)
+			},
 		}
+		if len(ops.extra) > 0 {
+			bound.extra = make(map[string]func(ctx context.Context, c *tmi.APIClient, id string) (any, *http.Response, error), len(ops.extra))
+			for action, fn := range ops.extra {
+				bound.extra[action] = func(ctx context.Context, c *tmi.APIClient, _ string) (any, *http.Response, error) {
+					return fn(ctx, c, in)
+				}
+			}
+		}
+
+		return dispatch(ctx, req, d, in.Action, in.Profile, in.ID, in.Fields, bound)
 	})
 }
