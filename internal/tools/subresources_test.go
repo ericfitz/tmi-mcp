@@ -8,18 +8,61 @@ import (
 
 // subCase describes one sub-resource tool for the table test below.
 type subCase struct {
-	tool     string // MCP tool name
-	plural   string // path segment under /threat_models/TM/
-	listJSON string // fixture returned for the list action
-	itemJSON string // fixture returned for get/create/update
+	tool         string         // MCP tool name
+	plural       string         // path segment under /threat_models/TM/
+	listJSON     string         // fixture returned for the list action
+	itemJSON     string         // fixture returned for get/create/update
+	createFields map[string]any // fields for the create action; must satisfy the tool's required-field set
 }
 
 var subCases = []subCase{
-	{tool: "diagrams", plural: "diagrams", listJSON: listDiagramsJSON, itemJSON: diagramJSON},
-	{tool: "assets", plural: "assets", listJSON: listAssetsJSON, itemJSON: assetJSON},
-	{tool: "documents", plural: "documents", listJSON: listDocumentsJSON, itemJSON: documentJSON},
-	{tool: "notes", plural: "notes", listJSON: listNotesJSON, itemJSON: noteJSON},
-	{tool: "repositories", plural: "repositories", listJSON: listRepositoriesJSON, itemJSON: repositoryJSON},
+	{tool: "diagrams", plural: "diagrams", listJSON: listDiagramsJSON, itemJSON: diagramJSON,
+		createFields: map[string]any{"name": "NewDiagram", "type": "DFD"}},
+	{tool: "assets", plural: "assets", listJSON: listAssetsJSON, itemJSON: assetJSON,
+		createFields: map[string]any{"name": "NewAsset", "type": "software"}},
+	{tool: "documents", plural: "documents", listJSON: listDocumentsJSON, itemJSON: documentJSON,
+		createFields: map[string]any{"name": "NewDocument", "uri": "https://example.com/doc"}},
+	{tool: "notes", plural: "notes", listJSON: listNotesJSON, itemJSON: noteJSON,
+		createFields: map[string]any{"name": "NewNote", "content": "note text"}},
+	{tool: "repositories", plural: "repositories", listJSON: listRepositoriesJSON, itemJSON: repositoryJSON,
+		createFields: map[string]any{"uri": "https://github.com/example/repo"}},
+}
+
+// TestSubResourceCreate covers dispatch's "create" action (dispatch.go) for
+// every threat-model-scoped resource tool: it must POST to
+// /threat_models/TM/<plural> with a body carrying the fields given, and
+// return the created item on success.
+func TestSubResourceCreate(t *testing.T) {
+	for _, tc := range subCases {
+		t.Run(tc.tool, func(t *testing.T) {
+			wantPath := "/threat_models/TM/" + tc.plural
+			var gotMethod, gotPath string
+			var gotBody map[string]any
+			cs := harness(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				gotMethod, gotPath = r.Method, r.URL.Path
+				_ = json.NewDecoder(r.Body).Decode(&gotBody)
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(tc.itemJSON))
+			}))
+
+			_, text, isErr := call(t, cs, tc.tool, map[string]any{
+				"action":          "create",
+				"threat_model_id": "TM",
+				"fields":          tc.createFields,
+			})
+			if isErr {
+				t.Fatalf("%s", text)
+			}
+			if gotMethod != http.MethodPost || gotPath != wantPath {
+				t.Fatalf("method=%s path=%s", gotMethod, gotPath)
+			}
+			for k, want := range tc.createFields {
+				if got := gotBody[k]; got != want {
+					t.Fatalf("body[%q] = %v, want %v (body = %v)", k, got, want, gotBody)
+				}
+			}
+		})
+	}
 }
 
 func TestSubResourceList(t *testing.T) {

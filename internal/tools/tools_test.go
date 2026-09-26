@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -90,5 +91,44 @@ func TestUnknownActionIsToolError(t *testing.T) {
 	_, text, isErr := call(t, cs, "auth", map[string]any{"action": "explode"})
 	if !isErr {
 		t.Fatalf("want tool error, got %s", text)
+	}
+}
+
+// TestCallRefreshesAndRetriesOn401 exercises session.Manager.Call's 401
+// handling end to end through the real generated client: a data call with
+// the harness's stored access token ("AT") gets 401, which must trigger
+// exactly one refresh (via the harness's real RefreshFn = auth.Refresh, not
+// a stub) and exactly one retry with the refreshed token ("AT2"), never a
+// login (the harness forbids it).
+func TestCallRefreshesAndRetriesOn401(t *testing.T) {
+	var dataCalls int32
+	cs := harness(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/oauth2/refresh":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"access_token":"AT2","refresh_token":"RT2","token_type":"Bearer","expires_in":3600}`))
+		case "/threat_models/TM":
+			atomic.AddInt32(&dataCalls, 1)
+			if r.Header.Get("Authorization") != "Bearer AT2" {
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(threatModelJSON))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+
+	v, text, isErr := call(t, cs, "threat_models", map[string]any{"action": "get", "id": "TM"})
+	if isErr {
+		t.Fatalf("%s", text)
+	}
+	if got := atomic.LoadInt32(&dataCalls); got != 2 {
+		t.Fatalf("data calls = %d, want exactly 2 (initial 401 + retry)", got)
+	}
+	m, ok := v.(map[string]any)
+	if !ok || m["id"] != "tm-1" {
+		t.Fatalf("result = %v", v)
 	}
 }
