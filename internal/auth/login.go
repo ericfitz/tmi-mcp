@@ -107,7 +107,7 @@ func Login(ctx context.Context, p config.Profile, notify func(msg string)) (*tok
 	}
 	authURL := server + "/oauth2/authorize?" + q.Encode()
 
-	if err := preflightAuthorize(ctx, authURL, server); err != nil {
+	if err := preflightAuthorize(ctx, authURL, server, p); err != nil {
 		_ = ln.Close()
 		return nil, err
 	}
@@ -191,7 +191,7 @@ func Login(ctx context.Context, p config.Profile, notify func(msg string)) (*tok
 // preflightAuthorize checks the authorize URL for a client_callback
 // allowlist rejection before opening the browser, so a misconfigured server
 // fails fast instead of leaving the user staring at an error page.
-func preflightAuthorize(ctx context.Context, authURL, server string) error {
+func preflightAuthorize(ctx context.Context, authURL, server string, p config.Profile) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, authURL, nil)
 	if err != nil {
 		return err
@@ -207,7 +207,12 @@ func preflightAuthorize(ctx context.Context, authURL, server string) error {
 	defer func() { _ = resp.Body.Close() }()
 	body, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode == http.StatusBadRequest && strings.Contains(string(body), "allowlist") {
-		return fmt.Errorf(`TMI rejected the login callback: add "http://127.0.0.1:*" to auth.oauth.client_callback_allowlist on %s`, server)
+		if p.CallbackPort != 0 {
+			return fmt.Errorf(`TMI rejected the login callback: add "http://127.0.0.1:%d/*" to auth.oauth.client_callback_allowlist on %s`,
+				p.CallbackPort, server)
+		}
+		return fmt.Errorf(`TMI rejected the login callback: set callback_port (e.g. 8765) on profile %s and add "http://127.0.0.1:8765/*" to auth.oauth.client_callback_allowlist on %s`,
+			p.Name, server)
 	}
 	if resp.StatusCode >= 400 {
 		return &APIError{Status: resp.StatusCode, Body: body}

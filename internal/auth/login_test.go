@@ -145,7 +145,26 @@ func TestLoginAllowlistRejectedFailsFast(t *testing.T) {
 	OpenBrowser = func(string) error { t.Fatal("browser must not open"); return nil }
 	t.Cleanup(func() { OpenBrowser = defaultOpenBrowser })
 	_, err := Login(context.Background(), config.Profile{Name: "p", Server: f.URL}, func(string) {})
-	if err == nil || !strings.Contains(err.Error(), "client_callback_allowlist") || !strings.Contains(err.Error(), "http://127.0.0.1:*") {
+	if err == nil ||
+		!strings.Contains(err.Error(), "client_callback_allowlist") ||
+		!strings.Contains(err.Error(), "callback_port") ||
+		!strings.Contains(err.Error(), "profile p") ||
+		!strings.Contains(err.Error(), "http://127.0.0.1:8765/*") ||
+		strings.Contains(err.Error(), "http://127.0.0.1:*\"") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestLoginAllowlistRejectedFailsFastWithCallbackPort(t *testing.T) {
+	f := newFake(t)
+	f.rejectCB = true
+	OpenBrowser = func(string) error { t.Fatal("browser must not open"); return nil }
+	t.Cleanup(func() { OpenBrowser = defaultOpenBrowser })
+	_, err := Login(context.Background(), config.Profile{Name: "p", Server: f.URL, CallbackPort: 9999}, func(string) {})
+	if err == nil ||
+		!strings.Contains(err.Error(), "client_callback_allowlist") ||
+		!strings.Contains(err.Error(), "http://127.0.0.1:9999/*") ||
+		strings.Contains(err.Error(), "callback_port") {
 		t.Fatalf("got %v", err)
 	}
 }
