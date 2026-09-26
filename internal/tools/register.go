@@ -12,4 +12,6 @@ type Deps struct{ S *session.Manager }
 // Register registers every tool on s.
 func Register(s *mcp.Server, d *Deps) {
 	registerAuth(s, d)
+	registerThreatModels(s, d)
+	registerThreats(s, d)
 }
