@@ -4,7 +4,6 @@ package auth
 
 import (
 	"context"
-	"net/http"
 	"os"
 	"testing"
 
@@ -28,17 +27,7 @@ func TestIntegrationLoginRefreshRevoke(t *testing.T) {
 		t.Skip("TMI_MCP_INTEGRATION_SERVER not set")
 	}
 
-	old := OpenBrowser
-	OpenBrowser = func(u string) error {
-		go func() {
-			resp, err := http.Get(u)
-			if err == nil {
-				_ = resp.Body.Close()
-			}
-		}()
-		return nil
-	}
-	t.Cleanup(func() { OpenBrowser = old })
+	browserFollows(t)
 
 	p := config.Profile{Name: "integration", Server: server, IDP: "tmi", LoginHint: "alice"}
 	tok, err := Login(context.Background(), p, func(msg string) { t.Log(msg) })

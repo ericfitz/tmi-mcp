@@ -152,6 +152,112 @@ func TestLoginAllowlistRejectedFailsFast(t *testing.T) {
 	}
 }
 
+// TestLoginStateMismatchDoesNotAbortLogin sends a stray callback hit with the
+// wrong state before the real one arrives. It must get 400 and must not
+// abort the login: the login still completes when the correct callback
+// follows (see login.go's callback handler).
+func TestLoginStateMismatchDoesNotAbortLogin(t *testing.T) {
+	f := newFake(t)
+	var strayStatus atomic.Int32
+	OpenBrowser = func(u string) error {
+		go func() {
+			parsed, err := url.Parse(u)
+			if err != nil {
+				return
+			}
+			cb := parsed.Query().Get("client_callback")
+			if resp, err := http.Get(cb + "?state=wrong-state&code=bogus"); err == nil {
+				strayStatus.Store(int32(resp.StatusCode))
+				_ = resp.Body.Close()
+			}
+			resp, err := http.Get(u)
+			if err == nil {
+				_ = resp.Body.Close()
+			}
+		}()
+		return nil
+	}
+	t.Cleanup(func() { OpenBrowser = defaultOpenBrowser })
+
+	tok, err := Login(context.Background(), config.Profile{Name: "p", Server: f.URL}, func(string) {})
+	if err != nil {
+		t.Fatalf("Login: %v", err)
+	}
+	if tok.AccessToken != "AT" {
+		t.Fatalf("%+v", tok)
+	}
+	if got := strayStatus.Load(); got != http.StatusBadRequest {
+		t.Fatalf("stray callback status = %d, want 400", got)
+	}
+}
+
+// TestErrorPageEscapesValuesAndIncludesDescription checks the callback error
+// page HTML-escapes the error/error_description query values (they come
+// straight from the IdP redirect, so are attacker-influenceable) and
+// includes the description.
+func TestErrorPageEscapesValuesAndIncludesDescription(t *testing.T) {
+	got := errorPage("access_denied", "<script>bad</script>")
+	if strings.Contains(got, "<script>bad</script>") {
+		t.Fatalf("not escaped: %s", got)
+	}
+	if !strings.Contains(got, "&lt;script&gt;bad&lt;/script&gt;") {
+		t.Fatalf("missing escaped description: %s", got)
+	}
+}
+
+// TestLoginDeniedIncludesDescription checks Login's returned error includes
+// error_description alongside error.
+func TestLoginDeniedIncludesDescription(t *testing.T) {
+	f := newFake(t)
+	OpenBrowser = func(u string) error {
+		go func() {
+			parsed, err := url.Parse(u)
+			if err != nil {
+				return
+			}
+			q := parsed.Query()
+			resp, err := http.Get(q.Get("client_callback") + "?error=access_denied&error_description=" +
+				url.QueryEscape("user said no") + "&state=" + url.QueryEscape(q.Get("state")))
+			if err == nil {
+				_ = resp.Body.Close()
+			}
+		}()
+		return nil
+	}
+	t.Cleanup(func() { OpenBrowser = defaultOpenBrowser })
+
+	_, err := Login(context.Background(), config.Profile{Name: "p", Server: f.URL}, func(string) {})
+	if err == nil || !strings.Contains(err.Error(), "access_denied") || !strings.Contains(err.Error(), "user said no") {
+		t.Fatalf("got %v", err)
+	}
+}
+
+// TestLoginCallbackEmptyCodeIsError checks a callback with no error and no
+// code (a malformed or unexpected redirect) surfaces a specific error
+// instead of proceeding to exchange an empty authorization code.
+func TestLoginCallbackEmptyCodeIsError(t *testing.T) {
+	f := newFake(t)
+	OpenBrowser = func(u string) error {
+		go func() {
+			parsed, err := url.Parse(u)
+			if err != nil {
+				return
+			}
+			resp, err := http.Get(parsed.Query().Get("client_callback") + "?state=" + url.QueryEscape(parsed.Query().Get("state")))
+			if err == nil {
+				_ = resp.Body.Close()
+			}
+		}()
+		return nil
+	}
+	t.Cleanup(func() { OpenBrowser = defaultOpenBrowser })
+
+	_, err := Login(context.Background(), config.Profile{Name: "p", Server: f.URL}, func(string) {})
+	if err == nil || !strings.Contains(err.Error(), "no authorization code") {
+		t.Fatalf("got %v", err)
+	}
+}
+
 func TestLoginDenied(t *testing.T) {
 	f := newFake(t)
 	f.denied = true

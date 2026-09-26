@@ -5,7 +5,9 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"errors"
 	"fmt"
+	"html"
 	"io"
 	"net"
 	"net/http"
@@ -46,6 +48,16 @@ func randomState() (string, error) {
 type callbackResult struct {
 	code string
 	err  error
+}
+
+// errorPage renders the callback error page. errVal and desc come straight
+// from the IdP redirect's query string, so both are HTML-escaped.
+func errorPage(errVal, desc string) string {
+	msg := html.EscapeString(errVal)
+	if desc != "" {
+		msg += ": " + html.EscapeString(desc)
+	}
+	return fmt.Sprintf("<html><body><h3>login failed: %s</h3></body></html>", msg)
 }
 
 // Login performs a PKCE loopback login for profile p, opening the user's
@@ -96,15 +108,27 @@ func Login(ctx context.Context, p config.Profile, notify func(msg string)) (*tok
 	mux := http.NewServeMux()
 	mux.HandleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()
-		var res callbackResult
-		switch {
-		case q.Get("state") != state:
-			res.err = fmt.Errorf("state mismatch")
+		if q.Get("state") != state {
+			// A stray or stale hit (e.g. a retried browser request, or noise
+			// from an unrelated client) must not abort a login still waiting
+			// for the real callback.
 			w.WriteHeader(http.StatusBadRequest)
 			_, _ = io.WriteString(w, "<html><body><h3>state mismatch</h3></body></html>")
+			return
+		}
+		var res callbackResult
+		switch {
 		case q.Get("error") != "":
-			res.err = fmt.Errorf("login failed: %s", q.Get("error"))
-			_, _ = io.WriteString(w, fmt.Sprintf("<html><body><h3>login failed: %s</h3></body></html>", q.Get("error")))
+			errVal, desc := q.Get("error"), q.Get("error_description")
+			if desc != "" {
+				res.err = fmt.Errorf("login failed: %s: %s", errVal, desc)
+			} else {
+				res.err = fmt.Errorf("login failed: %s", errVal)
+			}
+			_, _ = io.WriteString(w, errorPage(errVal, desc))
+		case q.Get("code") == "":
+			res.err = errors.New("login callback carried no authorization code")
+			_, _ = io.WriteString(w, "<html><body><h3>login callback carried no authorization code</h3></body></html>")
 		default:
 			res.code = q.Get("code")
 			_, _ = io.WriteString(w, "<html><body><h3>TMI login complete. You can close this tab.</h3></body></html>")
@@ -178,7 +202,7 @@ func preflightAuthorize(ctx context.Context, authURL, server string) error {
 		return fmt.Errorf(`TMI rejected the login callback: add "http://127.0.0.1:*" to auth.oauth.client_callback_allowlist on %s`, server)
 	}
 	if resp.StatusCode >= 400 {
-		return fmt.Errorf("TMI rejected the login request: %d: %s", resp.StatusCode, body)
+		return &APIError{Status: resp.StatusCode, Body: body}
 	}
 	return nil
 }

@@ -16,7 +16,11 @@ func defaultOpenBrowser(url string) error {
 	default:
 		cmd = exec.Command("xdg-open", url)
 	}
-	return cmd.Start()
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	go func() { _ = cmd.Wait() }() // reap the child; we don't wait for the browser to exit
+	return nil
 }
 
 // OpenBrowser opens url in the system browser. Tests replace it.
