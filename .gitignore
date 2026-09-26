@@ -30,3 +30,7 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
+
+# Machine-local config and handoff
+.local/
+HANDOFF.md
