@@ -12,7 +12,7 @@ import (
 
 // authInput is the input for the auth tool.
 type authInput struct {
-	Action  string `json:"action" jsonschema:"one of login, logout, whoami, list_profiles"`
+	Action  string `json:"action" jsonschema:"one of login, logout, refresh, whoami, list_profiles"`
 	Profile string `json:"profile,omitempty" jsonschema:"profile name; empty uses the default profile"`
 }
 
@@ -26,7 +26,7 @@ type profileSummary struct {
 func registerAuth(s *mcp.Server, d *Deps) {
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "auth",
-		Description: "Manage TMI authentication: login, logout, whoami, or list configured profiles.",
+		Description: "Manage TMI authentication: login, logout, refresh the access token, whoami, or list configured profiles.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in authInput) (*mcp.CallToolResult, any, error) {
 		n := notifier(ctx, req)
 		switch in.Action {
@@ -39,6 +39,21 @@ func registerAuth(s *mcp.Server, d *Deps) {
 				return nil, nil, toolErr(err)
 			}
 			return nil, map[string]any{"status": "logged in", "profile": p.Name}, nil
+
+		case "refresh":
+			loggedIn, err := d.S.Refresh(ctx, in.Profile, n)
+			if err != nil {
+				return nil, nil, toolErr(err)
+			}
+			p, err := d.S.Profile(in.Profile)
+			if err != nil {
+				return nil, nil, toolErr(err)
+			}
+			status := "refreshed"
+			if loggedIn {
+				status = "logged in"
+			}
+			return nil, map[string]any{"status": status, "profile": p.Name}, nil
 
 		case "logout":
 			p, err := d.S.Profile(in.Profile)
@@ -72,7 +87,7 @@ func registerAuth(s *mcp.Server, d *Deps) {
 			return nil, map[string]any{"default": def.Name, "profiles": profiles}, nil
 
 		default:
-			return nil, nil, fmt.Errorf("unknown auth action %q; valid actions: login, logout, whoami, list_profiles", in.Action)
+			return nil, nil, fmt.Errorf("unknown auth action %q; valid actions: login, logout, refresh, whoami, list_profiles", in.Action)
 		}
 	})
 }

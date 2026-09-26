@@ -65,7 +65,7 @@ for `update` actions, each top-level key becomes a JSON Patch `add` at
 
 | Tool | Actions | Notes |
 |---|---|---|
-| `auth` | `login`, `logout`, `whoami`, `list_profiles` | `whoami` calls `GET /oauth2/userinfo` |
+| `auth` | `login`, `logout`, `refresh`, `whoami`, `list_profiles` | `refresh` refreshes the token if possible, otherwise falls back to a browser login; `whoami` calls `GET /oauth2/userinfo` |
 | `threat_models` | `list`, `get`, `create`, `update` | `list` filters: `name`, `owner`, `status`, `security_reviewer`, `limit`, `offset`; no delete |
 | `threats` | `list`, `get`, `create`, `update`, `delete` | scoped by `threat_model_id` |
 | `diagrams` | `list`, `get`, `create`, `update`, `delete`, `get_model` | scoped by `threat_model_id`; `get_model` returns a compact node/edge model |

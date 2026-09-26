@@ -148,6 +148,45 @@ func TestSecond401Surfaces(t *testing.T) {
 	}
 }
 
+func TestRefreshWithStoredToken(t *testing.T) {
+	h := newHarness()
+	h.store.m["a"] = &tokenstore.Tokens{AccessToken: "old", RefreshToken: "rt", ExpiresAt: time.Now().Add(time.Hour)}
+	loggedIn, err := h.m.Refresh(context.Background(), "a", nil)
+	if err != nil || loggedIn {
+		t.Fatalf("loggedIn=%v err=%v", loggedIn, err)
+	}
+	if h.refreshs.Load() != 1 || h.logins.Load() != 0 {
+		t.Fatalf("refreshs=%d logins=%d", h.refreshs.Load(), h.logins.Load())
+	}
+	if h.store.m["a"].AccessToken != "refreshed" {
+		t.Fatalf("refreshed tokens not saved: %+v", h.store.m["a"])
+	}
+}
+
+func TestRefreshFallsBackToLoginOnRefreshFailure(t *testing.T) {
+	h := newHarness()
+	h.refreshErr = &auth.APIError{Status: 401}
+	h.store.m["a"] = &tokenstore.Tokens{AccessToken: "old", RefreshToken: "rt", ExpiresAt: time.Now().Add(time.Hour)}
+	loggedIn, err := h.m.Refresh(context.Background(), "a", nil)
+	if err != nil || !loggedIn {
+		t.Fatalf("loggedIn=%v err=%v", loggedIn, err)
+	}
+	if h.logins.Load() != 1 {
+		t.Fatalf("logins=%d", h.logins.Load())
+	}
+}
+
+func TestRefreshNoStoredTokensLogsIn(t *testing.T) {
+	h := newHarness()
+	loggedIn, err := h.m.Refresh(context.Background(), "a", nil)
+	if err != nil || !loggedIn {
+		t.Fatalf("loggedIn=%v err=%v", loggedIn, err)
+	}
+	if h.logins.Load() != 1 || h.refreshs.Load() != 0 {
+		t.Fatalf("logins=%d refreshs=%d", h.logins.Load(), h.refreshs.Load())
+	}
+}
+
 func TestUnknownProfile(t *testing.T) {
 	h := newHarness()
 	_, err := h.m.Call(context.Background(), "zzz", nil, nil)

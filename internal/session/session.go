@@ -98,26 +98,28 @@ func (m *Manager) client(p config.Profile) *tmi.APIClient {
 }
 
 // token returns a valid access token for p, holding the per-profile lock for
-// the whole acquire so concurrent callers share one login/refresh.
-func (m *Manager) token(ctx context.Context, p config.Profile, n Notify, forceRefresh bool) (*tokenstore.Tokens, error) {
+// the whole acquire so concurrent callers share one login/refresh. The
+// second return value reports whether an interactive login was performed
+// (as opposed to a cache hit or a token refresh).
+func (m *Manager) token(ctx context.Context, p config.Profile, n Notify, forceRefresh bool) (*tokenstore.Tokens, bool, error) {
 	lock := m.lockFor(p.Name)
 	lock.Lock()
 	defer lock.Unlock()
 
 	tok, err := m.Store.Load(p.Name)
 	if err != nil {
-		return nil, fmt.Errorf("load tokens for profile %s: %w", p.Name, err)
+		return nil, false, fmt.Errorf("load tokens for profile %s: %w", p.Name, err)
 	}
 	if tok != nil && !forceRefresh && tok.Valid(m.Now()) {
-		return tok, nil
+		return tok, false, nil
 	}
 	if tok != nil && tok.RefreshToken != "" {
 		refreshed, err := m.RefreshFn(ctx, p.Server, tok.RefreshToken)
 		if err == nil {
 			if err := m.Store.Save(p.Name, refreshed); err != nil {
-				return nil, fmt.Errorf("save refreshed tokens for profile %s: %w", p.Name, err)
+				return nil, false, fmt.Errorf("save refreshed tokens for profile %s: %w", p.Name, err)
 			}
-			return refreshed, nil
+			return refreshed, false, nil
 		}
 		fmt.Fprintf(os.Stderr, "tmi-mcp: refresh failed for profile %s, falling back to login: %v\n", p.Name, err)
 	}
@@ -127,12 +129,12 @@ func (m *Manager) token(ctx context.Context, p config.Profile, n Notify, forceRe
 	}
 	newTok, err := m.LoginFn(ctx, p, n)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	if err := m.Store.Save(p.Name, newTok); err != nil {
-		return nil, fmt.Errorf("save tokens for profile %s: %w", p.Name, err)
+		return nil, false, fmt.Errorf("save tokens for profile %s: %w", p.Name, err)
 	}
-	return newTok, nil
+	return newTok, true, nil
 }
 
 // Call resolves profile, acquires a valid access token, and runs fn. On a
@@ -143,7 +145,7 @@ func (m *Manager) Call(ctx context.Context, profile string, n Notify, fn CallFun
 		return nil, err
 	}
 
-	tok, err := m.token(ctx, p, n, false)
+	tok, _, err := m.token(ctx, p, n, false)
 	if err != nil {
 		return nil, err
 	}
@@ -151,7 +153,7 @@ func (m *Manager) Call(ctx context.Context, profile string, n Notify, fn CallFun
 	v, resp, err := fn(ctx2, m.client(p))
 
 	if resp != nil && resp.StatusCode == http.StatusUnauthorized {
-		tok, tokErr := m.token(ctx, p, n, true)
+		tok, _, tokErr := m.token(ctx, p, n, true)
 		if tokErr != nil {
 			return nil, tokErr
 		}
@@ -184,6 +186,19 @@ func (m *Manager) Login(ctx context.Context, profile string, n Notify) error {
 		return err
 	}
 	return m.Store.Save(p.Name, tok)
+}
+
+// Refresh forces a token refresh for profile: if a refresh token is stored
+// and RefreshFn succeeds, the new tokens are saved and loggedIn is false;
+// otherwise (no stored refresh token, or refresh fails) it falls back to an
+// interactive login and loggedIn is true.
+func (m *Manager) Refresh(ctx context.Context, profile string, n Notify) (loggedIn bool, err error) {
+	p, err := m.Profile(profile)
+	if err != nil {
+		return false, err
+	}
+	_, loggedIn, err = m.token(ctx, p, n, true)
+	return loggedIn, err
 }
 
 // Logout best-effort revokes the stored refresh token, then deletes the

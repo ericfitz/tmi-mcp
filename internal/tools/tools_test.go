@@ -86,6 +86,29 @@ func TestAuthWhoamiSendsBearer(t *testing.T) {
 	}
 }
 
+// TestAuthRefresh exercises the auth tool's refresh action end to end: the
+// harness's real RefreshFn (auth.Refresh) hits the fake server's
+// /oauth2/refresh, so this must succeed without ever calling the harness's
+// forbidden LoginFn.
+func TestAuthRefresh(t *testing.T) {
+	cs := harness(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/oauth2/refresh" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"access_token":"AT2","refresh_token":"RT2","token_type":"Bearer","expires_in":3600}`))
+	}))
+	v, text, isErr := call(t, cs, "auth", map[string]any{"action": "refresh"})
+	if isErr {
+		t.Fatalf("%s", text)
+	}
+	m, ok := v.(map[string]any)
+	if !ok || m["status"] != "refreshed" {
+		t.Fatalf("result = %v", v)
+	}
+}
+
 func TestUnknownActionIsToolError(t *testing.T) {
 	cs := harness(t, http.NotFoundHandler())
 	_, text, isErr := call(t, cs, "auth", map[string]any{"action": "explode"})
