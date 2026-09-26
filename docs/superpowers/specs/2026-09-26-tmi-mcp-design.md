@@ -86,7 +86,8 @@ switch to a tagged version when available.
 ### Token acquisition, per tool call
 
 1. Load the profile's tokens from the store.
-2. If the access token's `exp` claim is more than 60 s away, use it.
+2. If the stored `expires_at` (computed from the token response's
+   `expires_in`) is more than 60 s away, use it.
 3. Else if a refresh token exists, call `POST /oauth2/refresh`, store the new
    pair, and continue. If refresh fails, fall through to login.
 4. Else run the interactive login.
@@ -101,17 +102,20 @@ A per-profile mutex makes concurrent tool calls share one refresh or login.
 3. Open in the system browser (`open` / `xdg-open` / `rundll32
    url.dll,FileProtocolHandler`):
    `{server}/oauth2/authorize?idp={idp}&client_callback=http://127.0.0.1:{port}/callback&code_challenge={c}&code_challenge_method=S256&state={s}&scope=openid%20profile%20email[&login_hint={h}]`
-4. Before blocking, send an MCP log notification: "Opening browser for TMI
+4. Preflight: GET the authorize URL without following redirects. A 400 whose
+   body mentions the allowlist fails immediately with the allowlist hint
+   (see Server prerequisite) instead of waiting for the 2-minute timeout.
+5. Before blocking, send an MCP log notification: "Opening browser for TMI
    login (profile X)…". Also print the URL to stderr in case the browser fails
    to open.
-5. The `/callback` handler verifies `state`, then reads `code` or `error` from
+6. The `/callback` handler verifies `state`, then reads `code` or `error` from
    the query string (TMI redirects with `?code=…&state=…`; confirmed in
    `tmi/auth/handlers_oauth.go`). It serves a short "Login complete; you can
    close this tab" page (or an error page).
-6. Exchange at `POST /oauth2/token` with `grant_type=authorization_code`,
+7. Exchange at `POST /oauth2/token` with `grant_type=authorization_code`,
    `code`, `code_verifier`, `redirect_uri` (the same callback URL), and
    `state`. Store the resulting tokens.
-7. Timeout is 2 minutes. The listener shuts down on success, error, or timeout.
+8. Timeout is 2 minutes. The listener shuts down on success, error, or timeout.
 
 ### Server prerequisite
 
