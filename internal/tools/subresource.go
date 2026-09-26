@@ -56,15 +56,13 @@ func addSubTool(s *mcp.Server, d *Deps, name, description string, ops subOps) {
 		Name:        name,
 		Description: description,
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in SubInput) (*mcp.CallToolResult, any, error) {
-		n := notifier(ctx, req)
-
 		if err := need(in.Action, "threat_model_id", in.ThreatModelID); err != nil {
 			return nil, nil, toolErr(err)
 		}
 
 		switch in.Action {
 		case "list":
-			v, err := d.S.Call(ctx, in.Profile, n, func(ctx context.Context, c *tmi.APIClient) (any, *http.Response, error) {
+			v, err := d.call(ctx, req, in.Profile, func(ctx context.Context, c *tmi.APIClient) (any, *http.Response, error) {
 				return ops.list(ctx, c, in)
 			})
 			if err != nil {
@@ -80,7 +78,7 @@ func addSubTool(s *mcp.Server, d *Deps, name, description string, ops subOps) {
 			if err := need(in.Action, "id", in.ID); err != nil {
 				return nil, nil, toolErr(err)
 			}
-			v, err := d.S.Call(ctx, in.Profile, n, func(ctx context.Context, c *tmi.APIClient) (any, *http.Response, error) {
+			v, err := d.call(ctx, req, in.Profile, func(ctx context.Context, c *tmi.APIClient) (any, *http.Response, error) {
 				return ops.get(ctx, c, in.ThreatModelID, in.ID)
 			})
 			if err != nil {
@@ -92,7 +90,7 @@ func addSubTool(s *mcp.Server, d *Deps, name, description string, ops subOps) {
 			if len(in.Fields) == 0 {
 				return nil, nil, toolErr(errRequiresFields(in.Action))
 			}
-			v, err := d.S.Call(ctx, in.Profile, n, func(ctx context.Context, c *tmi.APIClient) (any, *http.Response, error) {
+			v, err := d.call(ctx, req, in.Profile, func(ctx context.Context, c *tmi.APIClient) (any, *http.Response, error) {
 				return ops.create(ctx, c, in.ThreatModelID, in.Fields)
 			})
 			if err != nil {
@@ -111,7 +109,7 @@ func addSubTool(s *mcp.Server, d *Deps, name, description string, ops subOps) {
 			if err != nil {
 				return nil, nil, toolErr(err)
 			}
-			v, err := d.S.Call(ctx, in.Profile, n, func(ctx context.Context, c *tmi.APIClient) (any, *http.Response, error) {
+			v, err := d.call(ctx, req, in.Profile, func(ctx context.Context, c *tmi.APIClient) (any, *http.Response, error) {
 				return ops.patch(ctx, c, in.ThreatModelID, in.ID, patchDocs)
 			})
 			if err != nil {
@@ -123,7 +121,7 @@ func addSubTool(s *mcp.Server, d *Deps, name, description string, ops subOps) {
 			if err := need(in.Action, "id", in.ID); err != nil {
 				return nil, nil, toolErr(err)
 			}
-			_, err := d.S.Call(ctx, in.Profile, n, func(ctx context.Context, c *tmi.APIClient) (any, *http.Response, error) {
+			_, err := d.call(ctx, req, in.Profile, func(ctx context.Context, c *tmi.APIClient) (any, *http.Response, error) {
 				resp, err := ops.del(ctx, c, in.ThreatModelID, in.ID)
 				return nil, resp, err
 			})
@@ -140,7 +138,7 @@ func addSubTool(s *mcp.Server, d *Deps, name, description string, ops subOps) {
 			if err := need(in.Action, "id", in.ID); err != nil {
 				return nil, nil, toolErr(err)
 			}
-			v, err := d.S.Call(ctx, in.Profile, n, func(ctx context.Context, c *tmi.APIClient) (any, *http.Response, error) {
+			v, err := d.call(ctx, req, in.Profile, func(ctx context.Context, c *tmi.APIClient) (any, *http.Response, error) {
 				return extra(ctx, c, in)
 			})
 			if err != nil {

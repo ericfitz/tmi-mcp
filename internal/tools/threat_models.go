@@ -29,10 +29,9 @@ func registerThreatModels(s *mcp.Server, d *Deps) {
 		Name:        "threat_models",
 		Description: "Threat models in TMI. Actions: list (filters: name, owner, status, security_reviewer, limit, offset), get (id), create (fields: name required; description, threat_model_framework, issue_uri, ...), update (id, fields: only the fields to change). There is no delete.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in TMInput) (*mcp.CallToolResult, any, error) {
-		n := notifier(ctx, req)
 		switch in.Action {
 		case "list":
-			v, err := d.S.Call(ctx, in.Profile, n, func(ctx context.Context, c *tmi.APIClient) (any, *http.Response, error) {
+			v, err := d.call(ctx, req, in.Profile, func(ctx context.Context, c *tmi.APIClient) (any, *http.Response, error) {
 				r := c.ThreatModelsAPI.ListThreatModels(ctx)
 				if in.Limit != 0 {
 					r = r.Limit(in.Limit)
@@ -67,7 +66,7 @@ func registerThreatModels(s *mcp.Server, d *Deps) {
 			if err := need(in.Action, "id", in.ID); err != nil {
 				return nil, nil, toolErr(err)
 			}
-			v, err := d.S.Call(ctx, in.Profile, n, func(ctx context.Context, c *tmi.APIClient) (any, *http.Response, error) {
+			v, err := d.call(ctx, req, in.Profile, func(ctx context.Context, c *tmi.APIClient) (any, *http.Response, error) {
 				return c.ThreatModelsAPI.GetThreatModel(ctx, in.ID).Execute()
 			})
 			if err != nil {
@@ -83,7 +82,7 @@ func registerThreatModels(s *mcp.Server, d *Deps) {
 			if err != nil {
 				return nil, nil, toolErr(err)
 			}
-			v, err := d.S.Call(ctx, in.Profile, n, func(ctx context.Context, c *tmi.APIClient) (any, *http.Response, error) {
+			v, err := d.call(ctx, req, in.Profile, func(ctx context.Context, c *tmi.APIClient) (any, *http.Response, error) {
 				return c.ThreatModelsAPI.CreateThreatModel(ctx).ThreatModelInput(tmInput).Execute()
 			})
 			if err != nil {
@@ -102,7 +101,7 @@ func registerThreatModels(s *mcp.Server, d *Deps) {
 			if err != nil {
 				return nil, nil, toolErr(err)
 			}
-			v, err := d.S.Call(ctx, in.Profile, n, func(ctx context.Context, c *tmi.APIClient) (any, *http.Response, error) {
+			v, err := d.call(ctx, req, in.Profile, func(ctx context.Context, c *tmi.APIClient) (any, *http.Response, error) {
 				return c.ThreatModelsAPI.PatchThreatModel(ctx, in.ID).JsonPatchDocumentInner(ops).Execute()
 			})
 			if err != nil {

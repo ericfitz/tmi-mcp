@@ -55,6 +55,35 @@ func TestThreatsDelete(t *testing.T) {
 	}
 }
 
+// TestThreatsGetToleratesUnknownField exercises d.call's rawOnDecodeErr path
+// (see common.go) for a tool other than diagrams: a server newer than the
+// vendored client's spec that adds a response field would otherwise make
+// Threat's DisallowUnknownFields decode fail. The tool must still succeed
+// and the extra field must survive in the result.
+func TestThreatsGetToleratesUnknownField(t *testing.T) {
+	const threatWithExtraFieldJSON = `{"id":"th-1","name":"SQLi","threat_type":["injection"],"surprise_field":"new in server"}`
+	cs := harness(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(threatWithExtraFieldJSON))
+	}))
+
+	v, text, isErr := call(t, cs, "threats", map[string]any{
+		"action":          "get",
+		"threat_model_id": "TM",
+		"id":              "TH",
+	})
+	if isErr {
+		t.Fatalf("%s", text)
+	}
+	m, ok := v.(map[string]any)
+	if !ok || m["id"] != "th-1" {
+		t.Fatalf("result = %v", v)
+	}
+	if m["surprise_field"] != "new in server" {
+		t.Fatalf("surprise_field missing from result: %v", m)
+	}
+}
+
 func TestThreatsCreateRejectsDangerousContent(t *testing.T) {
 	cs := harness(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

@@ -51,7 +51,7 @@ func registerAuth(s *mcp.Server, d *Deps) {
 			return nil, map[string]any{"status": "logged out", "profile": p.Name}, nil
 
 		case "whoami":
-			v, err := d.S.Call(ctx, in.Profile, n, func(ctx context.Context, c *tmi.APIClient) (any, *http.Response, error) {
+			v, err := d.call(ctx, req, in.Profile, func(ctx context.Context, c *tmi.APIClient) (any, *http.Response, error) {
 				return c.AuthenticationAPI.GetCurrentUser(ctx).Execute()
 			})
 			if err != nil {

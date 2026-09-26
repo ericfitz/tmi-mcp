@@ -103,10 +103,23 @@ func compactList(v any) (any, error) {
 	return m, nil
 }
 
+// call runs fn against a session for profile, notifying req's caller, and
+// tolerates unknown response fields on every tool via rawOnDecodeErr — every
+// generated TMI model decodes with DisallowUnknownFields, so a server newer
+// than the vendored client's spec would otherwise make any get/create/update
+// fail to decode. This is the single place all tools route session calls
+// through; add a new tool by calling this instead of d.S.Call directly.
+func (d *Deps) call(ctx context.Context, req *mcp.CallToolRequest, profile string, fn session.CallFunc) (any, error) {
+	return d.S.Call(ctx, profile, notifier(ctx, req), func(ctx context.Context, c *tmi.APIClient) (any, *http.Response, error) {
+		return rawOnDecodeErr(fn(ctx, c))
+	})
+}
+
 // rawOnDecodeErr returns the raw 2xx response body as json.RawMessage when
 // the generated client got a successful HTTP response but failed only to
 // decode it into its target Go type. Otherwise it returns v, resp, and err
-// unchanged.
+// unchanged. Every tool's session call is routed through this via d.call, so
+// it covers all tools, not just diagrams.
 //
 // ponytail: works around a decode bug in tmi-clients v1_15_0's DfdDiagram.
 // DfdDiagram embeds BaseDiagram and defines its own UnmarshalJSON, which
@@ -115,8 +128,10 @@ func compactList(v any) (any, error) {
 // the *embedded* BaseDiagram.UnmarshalJSON instead of plain field-by-field
 // decoding — which requires "type" and rejects "cells" as unknown, so every
 // real diagram response (cells is DfdDiagram's own required field) fails to
-// decode. Delete this helper and its call sites in diagrams.go once
-// tmi-clients is regenerated with the fix.
+// decode. Also doubles as tolerance for a server that adds response fields
+// ahead of the vendored client's spec. Delete the DfdDiagram-specific
+// reasoning above once tmi-clients is regenerated with the fix; keep the
+// helper for the general unknown-field case.
 func rawOnDecodeErr(v any, resp *http.Response, err error) (any, *http.Response, error) {
 	if err == nil || resp == nil || resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return v, resp, err
