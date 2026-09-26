@@ -20,10 +20,25 @@ const threatModelJSON = `{"id":"tm-1","name":"TM1","owner":` + userJSON + `,"thr
 // diagram_count, threat_count, asset_count, note_count; see model_tm_list_item.go).
 const listThreatModelsJSON = `{"threat_models":[{"id":"tm-1","name":"TM1","created_at":"2024-01-01T00:00:00Z","modified_at":"2024-01-01T00:00:00Z","owner":` + userJSON + `,"created_by":` + userJSON + `,"threat_model_framework":"STRIDE","document_count":3,"repo_count":0,"diagram_count":0,"threat_count":0,"asset_count":0,"note_count":0}],"total":1,"limit":5,"offset":0}`
 
+// diagramNodeJSON and diagramEdgeJSON are a canned Node and Edge cell
+// (model_node.go, model_edge.go, model_cell.go, model_edge_terminal.go): a
+// realistic pair exercising DfdDiagram's oneOf Node/Edge cell decode, not an
+// empty cells array.
+const diagramNodeJSON = `{"id":"11111111-1111-1111-1111-111111111111","shape":"actor","position":{"x":10,"y":20},"size":{"width":40,"height":40}}`
+const diagramEdgeJSON = `{"id":"22222222-2222-2222-2222-222222222222","shape":"flow","source":{"cell":"11111111-1111-1111-1111-111111111111"},"target":{"cell":"11111111-1111-1111-1111-111111111111"}}`
+
 // diagramJSON is a canned DfdDiagram (required: cells, id, name, created_at,
 // modified_at, plus type from the embedded BaseDiagram; see
-// model_dfd_diagram.go, model_base_diagram.go).
-const diagramJSON = `{"id":"dg-1","name":"Diagram1","type":"DFD","cells":[],"created_at":"2024-01-01T00:00:00Z","modified_at":"2024-01-01T00:00:00Z"}`
+// model_dfd_diagram.go, model_base_diagram.go). cells holds one real node
+// and one real edge so decoding it exercises DfdDiagram's typed decode path,
+// not just an empty array.
+const diagramJSON = `{"id":"dg-1","name":"Diagram1","type":"DFD","cells":[` + diagramNodeJSON + `,` + diagramEdgeJSON + `],"created_at":"2024-01-01T00:00:00Z","modified_at":"2024-01-01T00:00:00Z"}`
+
+// diagramWithUnknownFieldJSON is diagramJSON plus a field absent from the
+// vendored client's spec. Every generated model decodes with
+// DisallowUnknownFields, so this is a genuine decode error from a
+// successful (2xx) response — the case rawOnDecodeErr guards against.
+const diagramWithUnknownFieldJSON = `{"id":"dg-1","name":"Diagram1","type":"DFD","cells":[],"created_at":"2024-01-01T00:00:00Z","modified_at":"2024-01-01T00:00:00Z","future_field":"x"}`
 
 // diagramListItemJSON is a canned DiagramListItem (required: id, name, type,
 // created_at, modified_at; see model_diagram_list_item.go).

@@ -61,21 +61,15 @@ func newFake(t *testing.T) *fakeTMI {
 		_, _ = io.WriteString(w, `{"access_token":"AT","refresh_token":"RT","token_type":"Bearer","expires_in":3600}`)
 	})
 	mux.HandleFunc("/oauth2/revoke", func(w http.ResponseWriter, r *http.Request) {
-		// Mirrors the real server (auth/handlers_revocation.go RevokeToken):
-		// JSON content type binds strictly; anything else is form-bound.
-		var tok string
-		if strings.Contains(r.Header.Get("Content-Type"), "application/json") {
-			var body map[string]any
-			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-				w.WriteHeader(400)
-				return
-			}
-			tok, _ = body["token"].(string)
-		} else {
-			_ = r.ParseForm()
-			tok = r.Form.Get("token")
+		// RFC 7009 form-encodes the revoke request; only accepting a form
+		// body here (mirroring the real server) proves the generated client
+		// actually sends one instead of an empty JSON body.
+		if !strings.Contains(r.Header.Get("Content-Type"), "application/x-www-form-urlencoded") {
+			w.WriteHeader(400)
+			return
 		}
-		if tok == "" {
+		_ = r.ParseForm()
+		if r.Form.Get("token") == "" {
 			w.WriteHeader(400)
 			_, _ = io.WriteString(w, `{"error":"invalid_request","error_description":"Missing required 'token' parameter"}`)
 			return
@@ -302,9 +296,10 @@ func TestRevoke(t *testing.T) {
 	if err := Revoke(context.Background(), f.URL, "RT"); err != nil {
 		t.Fatal(err)
 	}
-	err := Revoke(context.Background(), f.URL, "")
-	var ae *APIError
-	if err == nil || !asAPI(err, &ae) || ae.Status != 400 {
-		t.Fatalf("want APIError 400, got %v", err)
+	// An empty token is rejected by the generated client's own client-side
+	// validation (min length 1) before any request goes out, so this is a
+	// plain error rather than an *APIError from the fake server.
+	if err := Revoke(context.Background(), f.URL, ""); err == nil {
+		t.Fatal("want error for empty token")
 	}
 }

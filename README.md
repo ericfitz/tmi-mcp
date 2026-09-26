@@ -79,13 +79,9 @@ for `update` actions, each top-level key becomes a JSON Patch `add` at
 
 ### Known client workarounds
 
-- Some responses that the vendored TMI client can't decode — because a
-  server field is newer than the client's spec, or a decode bug in a
-  particular generated type (e.g. diagrams) — are returned as raw JSON
-  instead of failing the call.
-- Token revoke sends a hand-built `application/x-www-form-urlencoded` POST;
-  the generated revoke call sends an empty JSON body that the server
-  rejects.
+- Responses with a field newer than the vendored client's spec (every
+  generated model decodes with `DisallowUnknownFields`) are returned as raw
+  JSON instead of failing the call.
 
 ## Where tokens live
 

@@ -144,11 +144,11 @@ func TestSubResourceUpdate(t *testing.T) {
 	}
 }
 
-// TestDiagramsGet exercises the rawOnDecodeErr workaround (see common.go)
-// for the "get" action: the vendored tmi-clients v1_15_0 DfdDiagram type
-// can never decode a response containing "cells" (a promoted-method decode
-// bug in the generated client), so without the workaround this would always
-// fail. It must still return the diagram JSON, including "cells".
+// TestDiagramsGet exercises the "get" action end to end through the typed
+// DfdDiagram decode (diagramJSON carries a real node and edge cell, not an
+// empty cells array): it must return the diagram JSON, including "cells".
+// TestDfdDiagramDecodesTypedWithRealCells (common_test.go) proves this
+// decode succeeds without rawOnDecodeErr's help.
 func TestDiagramsGet(t *testing.T) {
 	wantPath := "/threat_models/TM/diagrams/D"
 	var gotMethod, gotPath string
@@ -178,9 +178,9 @@ func TestDiagramsGet(t *testing.T) {
 	}
 }
 
-// TestDiagramsUpdateReturnsFullDiagram is the diagrams-specific half of the
-// rawOnDecodeErr workaround for "update": it must send the right PATCH
-// request AND return the full diagram JSON, including "cells".
+// TestDiagramsUpdateReturnsFullDiagram is the diagrams-specific half of
+// TestDiagramsGet: it must send the right PATCH request AND return the full
+// diagram JSON, including "cells", via the same typed DfdDiagram decode.
 func TestDiagramsUpdateReturnsFullDiagram(t *testing.T) {
 	wantPath := "/threat_models/TM/diagrams/ID"
 	var gotMethod, gotPath string

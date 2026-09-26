@@ -227,37 +227,11 @@ func Refresh(ctx context.Context, server, refreshToken string) (*tokenstore.Toke
 }
 
 // Revoke revokes token (RFC 7009) against server.
-//
-// ponytail: the generated tmi.AuthenticationAPIService.RevokeToken call is
-// broken — its Content-Type is forced to "application/json" (selectHeaderContentType
-// in the vendored client always prefers json when present in the consumes
-// list, ignoring declared order) but it only ever populates url.Values form
-// params, never a JSON body, so the real request goes out with an empty body
-// and the server's strict JSON binder rejects it with 400 "Missing required
-// 'token' parameter" every time (confirmed by a live round trip against a
-// no-op httptest server: Content-Type: application/json, Body: ""). This
-// posts the RFC 7009 form body by hand instead of going through that call.
-// Upgrade path: fix upstream in tmi-clients' OpenAPI codegen (selectHeaderContentType
-// should not reorder past the spec's declared consumes order when there is no
-// JSON body to send), regenerate, then delete this and call
-// AuthenticationAPI.RevokeToken(ctx).Token(token).TokenTypeHint("refresh_token").Execute()
-// as originally specified.
 func Revoke(ctx context.Context, server, token string) error {
 	server = strings.TrimRight(server, "/")
-	form := url.Values{"token": {token}, "token_type_hint": {"refresh_token"}}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, server+"/oauth2/revoke", strings.NewReader(form.Encode()))
+	_, resp, err := NewAPIClient(server).AuthenticationAPI.RevokeToken(ctx).Token(token).TokenTypeHint("refresh_token").Execute()
 	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode >= 300 {
-		body, _ := io.ReadAll(resp.Body)
-		return &APIError{Status: resp.StatusCode, Body: body}
+		return AsAPIError(err, resp)
 	}
 	return nil
 }

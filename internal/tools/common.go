@@ -121,17 +121,10 @@ func (d *Deps) call(ctx context.Context, req *mcp.CallToolRequest, profile strin
 // unchanged. Every tool's session call is routed through this via d.call, so
 // it covers all tools, not just diagrams.
 //
-// ponytail: works around a decode bug in tmi-clients v1_15_0's DfdDiagram.
-// DfdDiagram embeds BaseDiagram and defines its own UnmarshalJSON, which
-// decodes into a private shadow type (`_DfdDiagram`). That shadow type has
-// no UnmarshalJSON of its own, so Go's method promotion makes it decode via
-// the *embedded* BaseDiagram.UnmarshalJSON instead of plain field-by-field
-// decoding — which requires "type" and rejects "cells" as unknown, so every
-// real diagram response (cells is DfdDiagram's own required field) fails to
-// decode. Also doubles as tolerance for a server that adds response fields
-// ahead of the vendored client's spec. Delete the DfdDiagram-specific
-// reasoning above once tmi-clients is regenerated with the fix; keep the
-// helper for the general unknown-field case.
+// Every generated TMI model decodes with DisallowUnknownFields, so a server
+// newer than the vendored client's spec (a response field the client's
+// OpenAPI spec doesn't know about yet) would otherwise make any get/create/
+// update fail to decode. This is the guard for that case.
 func rawOnDecodeErr(v any, resp *http.Response, err error) (any, *http.Response, error) {
 	if err == nil || resp == nil || resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return v, resp, err

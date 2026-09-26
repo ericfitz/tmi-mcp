@@ -27,8 +27,6 @@ func registerDiagrams(s *mcp.Server, d *Deps) {
 			return r.Execute()
 		},
 		get: func(ctx context.Context, c *tmi.APIClient, tm, id string) (any, *http.Response, error) {
-			// d.call's rawOnDecodeErr works around a tmi-clients v1_15_0
-			// decode bug on DfdDiagram; see its doc comment in common.go.
 			return c.ThreatModelSubResourcesAPI.GetThreatModelDiagram(ctx, tm, id).Execute()
 		},
 		create: func(ctx context.Context, c *tmi.APIClient, tm string, fields map[string]any) (any, *http.Response, error) {

@@ -157,16 +157,41 @@ func execDiagramGet(t *testing.T, fake http.Handler) (*http.Response, error) {
 	return resp, err
 }
 
-func TestRawOnDecodeErr2xxJSONBodyReturnsRaw(t *testing.T) {
-	// diagramJSON has "cells", which the generated client's DfdDiagram
-	// decode can never handle (see rawOnDecodeErr's doc comment), so this
-	// naturally produces the *tmi.GenericOpenAPIError this helper targets.
-	resp, err := execDiagramGet(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+// TestDfdDiagramDecodesTypedWithRealCells proves the generated DfdDiagram
+// type itself decodes diagramJSON (a real node and a real edge cell) with no
+// help from rawOnDecodeErr: it calls the generated client directly and
+// requires a clean decode, unlike execDiagramGet's other callers which want
+// a decode error.
+func TestDfdDiagramDecodesTypedWithRealCells(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(diagramJSON))
 	}))
+	t.Cleanup(srv.Close)
+	c := auth.NewAPIClient(srv.URL)
+	got, _, err := c.ThreatModelSubResourcesAPI.GetThreatModelDiagram(context.Background(), "TM", "D").Execute()
+	if err != nil {
+		t.Fatalf("typed decode failed: %v", err)
+	}
+	if len(got.Cells) != 2 || got.Cells[0].Node == nil || got.Cells[1].Edge == nil {
+		t.Fatalf("cells not typed as Node/Edge: %+v", got.Cells)
+	}
+	if *got.Cells[0].Node.Shape != "actor" || got.Cells[1].Edge.Source.Cell != "11111111-1111-1111-1111-111111111111" {
+		t.Fatalf("cell fields wrong: %+v", got.Cells)
+	}
+}
+
+func TestRawOnDecodeErr2xxJSONBodyReturnsRaw(t *testing.T) {
+	// diagramWithUnknownFieldJSON carries a field absent from the vendored
+	// client's spec, which DisallowUnknownFields naturally turns into a
+	// *tmi.GenericOpenAPIError this helper targets (see rawOnDecodeErr's doc
+	// comment).
+	resp, err := execDiagramGet(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(diagramWithUnknownFieldJSON))
+	}))
 	if err == nil {
-		t.Fatal("want the known client decode bug to produce an error")
+		t.Fatal("want an unknown-field decode error")
 	}
 
 	v, gotResp, gotErr := rawOnDecodeErr(nil, resp, err)

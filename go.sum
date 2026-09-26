@@ -1,7 +1,7 @@
 github.com/danieljoos/wincred v1.2.3 h1:v7dZC2x32Ut3nEfRH+vhoZGvN72+dQ/snVXo/vMFLdQ=
 github.com/danieljoos/wincred v1.2.3/go.mod h1:6qqX0WNrS4RzPZ1tnroDzq9kY3fu1KwE7MRLQK4X0bs=
-github.com/ericfitz/tmi-clients/go-client-generated/v1_15_0 v0.0.0-20260926182318-0e6a703f28ba h1:ZqGCgCzogAm2887qLknkmHfJxiPmFazl75dEjsPunFY=
-github.com/ericfitz/tmi-clients/go-client-generated/v1_15_0 v0.0.0-20260926182318-0e6a703f28ba/go.mod h1:eaemcEx1nl1rrFbCCGH14UaORFBjHIQtFg9sEl8dkzo=
+github.com/ericfitz/tmi-clients/go-client-generated/v1_15_0 v1.15.0 h1:CpyWQSq7/CbtsDJhf4rxElpK1pQ2ByH9qDiTrxyaekA=
+github.com/ericfitz/tmi-clients/go-client-generated/v1_15_0 v1.15.0/go.mod h1:eaemcEx1nl1rrFbCCGH14UaORFBjHIQtFg9sEl8dkzo=
 github.com/godbus/dbus/v5 v5.2.2 h1:TUR3TgtSVDmjiXOgAAyaZbYmIeP3DPkld3jgKGV8mXQ=
 github.com/godbus/dbus/v5 v5.2.2/go.mod h1:3AAv2+hPq5rdnr5txxxRwiGjPXamgoIHgz9FPBfOp3c=
 github.com/golang-jwt/jwt/v5 v5.3.1 h1:kYf81DTWFe7t+1VvL7eS+jKFVWaUnK9cB1qbwn63YCY=
