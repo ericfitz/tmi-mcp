@@ -1,6 +1,10 @@
 package tools
 
 import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -137,5 +141,78 @@ func TestDecodeFieldsBadTypeIsError(t *testing.T) {
 	_, err := decodeFields[decodeTarget](map[string]any{"count": "not-a-number"})
 	if err == nil {
 		t.Fatal("want error for wrong field type")
+	}
+}
+
+// execDiagramGet drives a real tmi.APIClient against fake, so the returned
+// error (if any) is a genuine *tmi.GenericOpenAPIError from the generated
+// client, not a hand-rolled stand-in (its fields are private, so it can't be
+// constructed directly from this package).
+func execDiagramGet(t *testing.T, fake http.Handler) (*http.Response, error) {
+	t.Helper()
+	srv := httptest.NewServer(fake)
+	t.Cleanup(srv.Close)
+	c := auth.NewAPIClient(srv.URL)
+	_, resp, err := c.ThreatModelSubResourcesAPI.GetThreatModelDiagram(context.Background(), "TM", "D").Execute()
+	return resp, err
+}
+
+func TestRawOnDecodeErr2xxJSONBodyReturnsRaw(t *testing.T) {
+	// diagramJSON has "cells", which the generated client's DfdDiagram
+	// decode can never handle (see rawOnDecodeErr's doc comment), so this
+	// naturally produces the *tmi.GenericOpenAPIError this helper targets.
+	resp, err := execDiagramGet(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(diagramJSON))
+	}))
+	if err == nil {
+		t.Fatal("want the known client decode bug to produce an error")
+	}
+
+	v, gotResp, gotErr := rawOnDecodeErr(nil, resp, err)
+	if gotErr != nil {
+		t.Fatalf("want nil error, got %v", gotErr)
+	}
+	if gotResp != resp {
+		t.Fatalf("resp changed")
+	}
+	raw, ok := v.(json.RawMessage)
+	if !ok {
+		t.Fatalf("want json.RawMessage, got %T", v)
+	}
+	var m map[string]any
+	if err := json.Unmarshal(raw, &m); err != nil || m["id"] != "dg-1" {
+		t.Fatalf("raw = %s, err = %v", raw, err)
+	}
+}
+
+func TestRawOnDecodeErr4xxUnchanged(t *testing.T) {
+	resp, err := execDiagramGet(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"error":"bad"}`))
+	}))
+	if err == nil {
+		t.Fatal("want error for a 400 response")
+	}
+
+	_, _, gotErr := rawOnDecodeErr(nil, resp, err)
+	if gotErr != err {
+		t.Fatalf("want the error unchanged, got %v", gotErr)
+	}
+}
+
+func TestRawOnDecodeErrNonJSONBodyUnchanged(t *testing.T) {
+	resp, err := execDiagramGet(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte("not json"))
+	}))
+	if err == nil {
+		t.Fatal("want a decode error for a non-JSON body")
+	}
+
+	_, _, gotErr := rawOnDecodeErr(nil, resp, err)
+	if gotErr != err {
+		t.Fatalf("want the error unchanged, got %v", gotErr)
 	}
 }

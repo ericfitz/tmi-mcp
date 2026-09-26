@@ -22,17 +22,6 @@ var subCases = []subCase{
 	{tool: "repositories", plural: "repositories", listJSON: listRepositoriesJSON, itemJSON: repositoryJSON},
 }
 
-// updateCases is subCases minus diagrams: the vendored tmi-clients v1_15_0
-// DfdDiagram type embeds BaseDiagram, and Go's method promotion makes
-// *_DfdDiagram (the private shadow type its own UnmarshalJSON decodes into)
-// pick up BaseDiagram's UnmarshalJSON instead of decoding its own fields.
-// That nested decode has DisallowUnknownFields and no "cells" field, so any
-// real diagram response (which always has "cells") fails to decode. This is
-// a defect in the generated client, not in this tool's code; see
-// TestDiagramsUpdateHitsKnownClientDecodeBug below, which pins the current
-// (broken) behavior for the PATCH request/response path.
-var updateCases = subCases[1:]
-
 func TestSubResourceList(t *testing.T) {
 	for _, tc := range subCases {
 		t.Run(tc.tool, func(t *testing.T) {
@@ -81,7 +70,7 @@ func TestSubResourceList(t *testing.T) {
 }
 
 func TestSubResourceUpdate(t *testing.T) {
-	for _, tc := range updateCases {
+	for _, tc := range subCases {
 		t.Run(tc.tool, func(t *testing.T) {
 			wantPath := "/threat_models/TM/" + tc.plural + "/ID"
 			var gotMethod, gotPath string
@@ -112,14 +101,44 @@ func TestSubResourceUpdate(t *testing.T) {
 	}
 }
 
-// TestDiagramsUpdateHitsKnownClientDecodeBug pins the current behavior of
-// the diagrams tool's update action: the request is built and sent
-// correctly (right method, path, and JSON Patch body), but decoding any
-// realistic response (containing "cells") fails because of the vendored
-// tmi-clients v1_15_0 DfdDiagram/BaseDiagram decode defect described on
-// updateCases above. If a future client release fixes this, this test will
-// fail on the isErr check and should be merged back into TestSubResourceUpdate.
-func TestDiagramsUpdateHitsKnownClientDecodeBug(t *testing.T) {
+// TestDiagramsGet exercises the rawOnDecodeErr workaround (see common.go)
+// for the "get" action: the vendored tmi-clients v1_15_0 DfdDiagram type
+// can never decode a response containing "cells" (a promoted-method decode
+// bug in the generated client), so without the workaround this would always
+// fail. It must still return the diagram JSON, including "cells".
+func TestDiagramsGet(t *testing.T) {
+	wantPath := "/threat_models/TM/diagrams/D"
+	var gotMethod, gotPath string
+	cs := harness(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod, gotPath = r.Method, r.URL.Path
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(diagramJSON))
+	}))
+
+	v, text, isErr := call(t, cs, "diagrams", map[string]any{
+		"action":          "get",
+		"threat_model_id": "TM",
+		"id":              "D",
+	})
+	if isErr {
+		t.Fatalf("%s", text)
+	}
+	if gotMethod != http.MethodGet || gotPath != wantPath {
+		t.Fatalf("method=%s path=%s", gotMethod, gotPath)
+	}
+	m, ok := v.(map[string]any)
+	if !ok || m["id"] != "dg-1" {
+		t.Fatalf("result = %v", v)
+	}
+	if _, ok := m["cells"]; !ok {
+		t.Fatalf("cells missing from result: %v", m)
+	}
+}
+
+// TestDiagramsUpdateReturnsFullDiagram is the diagrams-specific half of the
+// rawOnDecodeErr workaround for "update": it must send the right PATCH
+// request AND return the full diagram JSON, including "cells".
+func TestDiagramsUpdateReturnsFullDiagram(t *testing.T) {
 	wantPath := "/threat_models/TM/diagrams/ID"
 	var gotMethod, gotPath string
 	var gotBody []map[string]any
@@ -130,20 +149,27 @@ func TestDiagramsUpdateHitsKnownClientDecodeBug(t *testing.T) {
 		_, _ = w.Write([]byte(diagramJSON))
 	}))
 
-	_, text, isErr := call(t, cs, "diagrams", map[string]any{
+	v, text, isErr := call(t, cs, "diagrams", map[string]any{
 		"action":          "update",
 		"threat_model_id": "TM",
 		"id":              "ID",
 		"fields":          map[string]any{"name": "NewName"},
 	})
+	if isErr {
+		t.Fatalf("%s", text)
+	}
 	if gotMethod != http.MethodPatch || gotPath != wantPath {
 		t.Fatalf("method=%s path=%s", gotMethod, gotPath)
 	}
 	if len(gotBody) != 1 || gotBody[0]["op"] != "add" || gotBody[0]["path"] != "/name" || gotBody[0]["value"] != "NewName" {
 		t.Fatalf("body = %v", gotBody)
 	}
-	if !isErr {
-		t.Fatalf("expected the known client decode bug to surface as a tool error, got success: %s", text)
+	m, ok := v.(map[string]any)
+	if !ok || m["id"] != "dg-1" {
+		t.Fatalf("result = %v", v)
+	}
+	if _, ok := m["cells"]; !ok {
+		t.Fatalf("cells missing from result: %v", m)
 	}
 }
 

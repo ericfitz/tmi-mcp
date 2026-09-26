@@ -27,17 +27,19 @@ func registerDiagrams(s *mcp.Server, d *Deps) {
 			return r.Execute()
 		},
 		get: func(ctx context.Context, c *tmi.APIClient, tm, id string) (any, *http.Response, error) {
-			return c.ThreatModelSubResourcesAPI.GetThreatModelDiagram(ctx, tm, id).Execute()
+			// rawOnDecodeErr works around a tmi-clients v1_15_0 decode bug on
+			// DfdDiagram; see its doc comment in common.go.
+			return rawOnDecodeErr(c.ThreatModelSubResourcesAPI.GetThreatModelDiagram(ctx, tm, id).Execute())
 		},
 		create: func(ctx context.Context, c *tmi.APIClient, tm string, fields map[string]any) (any, *http.Response, error) {
 			v, err := decodeFields[tmi.CreateDiagramRequest](fields)
 			if err != nil {
 				return nil, nil, err
 			}
-			return c.ThreatModelSubResourcesAPI.CreateThreatModelDiagram(ctx, tm).CreateDiagramRequest(v).Execute()
+			return rawOnDecodeErr(c.ThreatModelSubResourcesAPI.CreateThreatModelDiagram(ctx, tm).CreateDiagramRequest(v).Execute())
 		},
 		patch: func(ctx context.Context, c *tmi.APIClient, tm, id string, ops []tmi.JsonPatchDocumentInner) (any, *http.Response, error) {
-			return c.ThreatModelSubResourcesAPI.PatchThreatModelDiagram(ctx, tm, id).JsonPatchDocumentInner(ops).Execute()
+			return rawOnDecodeErr(c.ThreatModelSubResourcesAPI.PatchThreatModelDiagram(ctx, tm, id).JsonPatchDocumentInner(ops).Execute())
 		},
 		del: func(ctx context.Context, c *tmi.APIClient, tm, id string) (*http.Response, error) {
 			return c.ThreatModelSubResourcesAPI.DeleteThreatModelDiagram(ctx, tm, id).Execute()

@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"sort"
 	"strings"
@@ -100,6 +101,41 @@ func compactList(v any) (any, error) {
 		m[k] = compacted
 	}
 	return m, nil
+}
+
+// rawOnDecodeErr returns the raw 2xx response body as json.RawMessage when
+// the generated client got a successful HTTP response but failed only to
+// decode it into its target Go type. Otherwise it returns v, resp, and err
+// unchanged.
+//
+// ponytail: works around a decode bug in tmi-clients v1_15_0's DfdDiagram.
+// DfdDiagram embeds BaseDiagram and defines its own UnmarshalJSON, which
+// decodes into a private shadow type (`_DfdDiagram`). That shadow type has
+// no UnmarshalJSON of its own, so Go's method promotion makes it decode via
+// the *embedded* BaseDiagram.UnmarshalJSON instead of plain field-by-field
+// decoding — which requires "type" and rejects "cells" as unknown, so every
+// real diagram response (cells is DfdDiagram's own required field) fails to
+// decode. Delete this helper and its call sites in diagrams.go once
+// tmi-clients is regenerated with the fix.
+func rawOnDecodeErr(v any, resp *http.Response, err error) (any, *http.Response, error) {
+	if err == nil || resp == nil || resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return v, resp, err
+	}
+	var body []byte
+	var pe *tmi.GenericOpenAPIError
+	var ve tmi.GenericOpenAPIError
+	switch {
+	case errors.As(err, &pe):
+		body = pe.Body()
+	case errors.As(err, &ve):
+		body = ve.Body()
+	default:
+		return v, resp, err
+	}
+	if len(body) == 0 || !json.Valid(body) {
+		return v, resp, err
+	}
+	return json.RawMessage(body), resp, nil
 }
 
 // hintFor returns a user-facing hint for a TMI API error status, or "" if
