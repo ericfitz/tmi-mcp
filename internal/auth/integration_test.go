@@ -5,6 +5,7 @@ package auth
 import (
 	"context"
 	"os"
+	"strconv"
 	"testing"
 
 	tmi "github.com/ericfitz/tmi-clients/go-client-generated/v1_15_0"
@@ -20,7 +21,7 @@ import (
 //
 // Skipped unless TMI_MCP_INTEGRATION_SERVER is set, e.g.:
 //
-//	TMI_MCP_INTEGRATION_SERVER=http://localhost:8080 go test -tags integration -run Integration -v ./internal/auth/
+//	TMI_MCP_INTEGRATION_SERVER=http://localhost:8080 TMI_MCP_INTEGRATION_CALLBACK_PORT=8765 make test-integration
 func TestIntegrationLoginRefreshRevoke(t *testing.T) {
 	server := os.Getenv("TMI_MCP_INTEGRATION_SERVER")
 	if server == "" {
@@ -30,6 +31,13 @@ func TestIntegrationLoginRefreshRevoke(t *testing.T) {
 	browserFollows(t)
 
 	p := config.Profile{Name: "integration", Server: server, IDP: "tmi", LoginHint: "alice"}
+	if portStr := os.Getenv("TMI_MCP_INTEGRATION_CALLBACK_PORT"); portStr != "" {
+		port, err := strconv.Atoi(portStr)
+		if err != nil {
+			t.Fatalf("TMI_MCP_INTEGRATION_CALLBACK_PORT: %v", err)
+		}
+		p.CallbackPort = port
+	}
 	tok, err := Login(context.Background(), p, func(msg string) { t.Log(msg) })
 	if err != nil {
 		t.Fatalf("Login: %v", err)
