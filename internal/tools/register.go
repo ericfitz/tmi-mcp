@@ -14,4 +14,9 @@ func Register(s *mcp.Server, d *Deps) {
 	registerAuth(s, d)
 	registerThreatModels(s, d)
 	registerThreats(s, d)
+	registerDiagrams(s, d)
+	registerAssets(s, d)
+	registerDocuments(s, d)
+	registerNotes(s, d)
+	registerRepositories(s, d)
 }
