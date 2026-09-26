@@ -34,3 +34,6 @@ go.work.sum
 # Machine-local config and handoff
 .local/
 HANDOFF.md
+
+# Build output
+bin/

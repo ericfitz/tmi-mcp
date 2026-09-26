@@ -1,0 +1,9 @@
+.PHONY: build test lint test-integration
+build:
+	go build -o bin/tmi-mcp ./cmd/tmi-mcp
+test:
+	go test -timeout 120s ./...
+lint:
+	golangci-lint run ./...
+test-integration:
+	go test -tags integration -timeout 300s ./...
