@@ -239,9 +239,13 @@ func Refresh(ctx context.Context, server, refreshToken string) (*tokenstore.Toke
 	}, nil
 }
 
-// Revoke revokes token (RFC 7009) against server.
-func Revoke(ctx context.Context, server, token string) error {
+// Revoke revokes token (RFC 7009) against server, authenticating the revoke
+// request itself with accessToken: the TMI revoke handler requires either a
+// Bearer access token or client_id/client_secret on the request, separate
+// from the token being revoked.
+func Revoke(ctx context.Context, server, accessToken, token string) error {
 	server = strings.TrimRight(server, "/")
+	ctx = context.WithValue(ctx, tmi.ContextAccessToken, accessToken)
 	_, resp, err := NewAPIClient(server).AuthenticationAPI.RevokeToken(ctx).Token(token).TokenTypeHint("refresh_token").Execute()
 	if err != nil {
 		return AsAPIError(err, resp)

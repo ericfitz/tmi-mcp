@@ -198,12 +198,15 @@ func TestUnknownProfile(t *testing.T) {
 func TestLogoutRevokesAndDeletes(t *testing.T) {
 	h := newHarness()
 	h.store.m["a"] = &tokenstore.Tokens{AccessToken: "x", RefreshToken: "rt", ExpiresAt: time.Now().Add(time.Hour)}
-	var revoked string
-	h.m.RevokeFn = func(ctx context.Context, server, tok string) error { revoked = tok; return errors.New("server down") }
+	var revoked, revokedAccess string
+	h.m.RevokeFn = func(ctx context.Context, server, accessToken, tok string) error {
+		revokedAccess, revoked = accessToken, tok
+		return errors.New("server down")
+	}
 	if err := h.m.Logout(context.Background(), "a"); err != nil {
 		t.Fatal(err)
 	}
-	if revoked != "rt" || h.store.m["a"] != nil {
-		t.Fatalf("revoked=%q stored=%v", revoked, h.store.m["a"])
+	if revoked != "rt" || revokedAccess != "x" || h.store.m["a"] != nil {
+		t.Fatalf("revoked=%q revokedAccess=%q stored=%v", revoked, revokedAccess, h.store.m["a"])
 	}
 }

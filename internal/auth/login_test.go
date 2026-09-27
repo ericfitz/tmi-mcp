@@ -65,6 +65,15 @@ func newFake(t *testing.T) *fakeTMI {
 		_, _ = io.WriteString(w, `{"access_token":"AT","refresh_token":"RT","token_type":"Bearer","expires_in":3600}`)
 	})
 	mux.HandleFunc("/oauth2/revoke", func(w http.ResponseWriter, r *http.Request) {
+		// The real revoke handler requires the request itself be
+		// authenticated (Authorization: Bearer <access token>, or
+		// client_id/client_secret); mirror that here so a client that omits
+		// it fails the same way as against the live server.
+		if r.Header.Get("Authorization") != "Bearer AT" {
+			w.WriteHeader(401)
+			_, _ = io.WriteString(w, `{"error":"invalid_client","error_description":"Client authentication failed"}`)
+			return
+		}
 		// RFC 7009 form-encodes the revoke request; only accepting a form
 		// body here (mirroring the real server) proves the generated client
 		// actually sends one instead of an empty JSON body.
@@ -369,13 +378,24 @@ func TestLoginBusyCallbackPortFails(t *testing.T) {
 
 func TestRevoke(t *testing.T) {
 	f := newFake(t)
-	if err := Revoke(context.Background(), f.URL, "RT"); err != nil {
+	if err := Revoke(context.Background(), f.URL, "AT", "RT"); err != nil {
 		t.Fatal(err)
 	}
 	// An empty token is rejected by the generated client's own client-side
 	// validation (min length 1) before any request goes out, so this is a
 	// plain error rather than an *APIError from the fake server.
-	if err := Revoke(context.Background(), f.URL, ""); err == nil {
+	if err := Revoke(context.Background(), f.URL, "AT", ""); err == nil {
 		t.Fatal("want error for empty token")
+	}
+}
+
+func TestRevokeRequiresAccessToken(t *testing.T) {
+	f := newFake(t)
+	var ae *APIError
+	if err := Revoke(context.Background(), f.URL, "", "RT"); !asAPI(err, &ae) || ae.Status != http.StatusUnauthorized {
+		t.Fatalf("missing bearer: got %v, want 401 *APIError", err)
+	}
+	if err := Revoke(context.Background(), f.URL, "wrong-token", "RT"); !asAPI(err, &ae) || ae.Status != http.StatusUnauthorized {
+		t.Fatalf("incorrect bearer: got %v, want 401 *APIError", err)
 	}
 }

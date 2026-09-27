@@ -38,7 +38,7 @@ type Manager struct {
 	// Seams (default to auth.Login / auth.Refresh / auth.Revoke / time.Now).
 	LoginFn   func(ctx context.Context, p config.Profile, n func(string)) (*tokenstore.Tokens, error)
 	RefreshFn func(ctx context.Context, server, rt string) (*tokenstore.Tokens, error)
-	RevokeFn  func(ctx context.Context, server, token string) error
+	RevokeFn  func(ctx context.Context, server, accessToken, token string) error
 	Now       func() time.Time
 
 	mu      sync.Mutex
@@ -213,7 +213,7 @@ func (m *Manager) Logout(ctx context.Context, profile string) error {
 		return fmt.Errorf("load tokens for profile %s: %w", p.Name, err)
 	}
 	if tok != nil && tok.RefreshToken != "" {
-		if err := m.RevokeFn(ctx, p.Server, tok.RefreshToken); err != nil {
+		if err := m.RevokeFn(ctx, p.Server, tok.AccessToken, tok.RefreshToken); err != nil {
 			fmt.Fprintf(os.Stderr, "tmi-mcp: revoke failed for profile %s: %v\n", p.Name, err)
 		}
 	}

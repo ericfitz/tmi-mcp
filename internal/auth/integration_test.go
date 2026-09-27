@@ -59,7 +59,7 @@ func TestIntegrationLoginRefreshRevoke(t *testing.T) {
 		t.Fatalf("Refresh returned incomplete tokens: %+v", refreshed)
 	}
 
-	if err := Revoke(context.Background(), server, refreshed.RefreshToken); err != nil {
+	if err := Revoke(context.Background(), server, refreshed.AccessToken, refreshed.RefreshToken); err != nil {
 		t.Fatalf("Revoke: %v", err)
 	}
 }
