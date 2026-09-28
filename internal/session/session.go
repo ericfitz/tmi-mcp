@@ -121,6 +121,12 @@ func (m *Manager) token(ctx context.Context, p config.Profile, n Notify, forceRe
 			}
 			return refreshed, false, nil
 		}
+		// Refresh tokens are single-use, and the mutex above is per process:
+		// another tmi-mcp may have rotated ours first and saved the new pair.
+		if cur, lerr := m.Store.Load(p.Name); lerr == nil && cur != nil &&
+			cur.RefreshToken != tok.RefreshToken && cur.Valid(m.Now()) {
+			return cur, false, nil
+		}
 		fmt.Fprintf(os.Stderr, "tmi-mcp: refresh failed for profile %s, falling back to login: %v\n", p.Name, err)
 	}
 
@@ -190,8 +196,10 @@ func (m *Manager) Login(ctx context.Context, profile string, n Notify) error {
 
 // Refresh forces a token refresh for profile: if a refresh token is stored
 // and RefreshFn succeeds, the new tokens are saved and loggedIn is false;
-// otherwise (no stored refresh token, or refresh fails) it falls back to an
-// interactive login and loggedIn is true.
+// if refresh fails but another process already saved a valid rotated pair,
+// that pair is used and loggedIn is false; otherwise (no stored refresh
+// token, or refresh fails) it falls back to an interactive login and
+// loggedIn is true.
 func (m *Manager) Refresh(ctx context.Context, profile string, n Notify) (loggedIn bool, err error) {
 	p, err := m.Profile(profile)
 	if err != nil {

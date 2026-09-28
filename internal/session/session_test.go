@@ -118,6 +118,23 @@ func TestRefreshFailureFallsBackToLogin(t *testing.T) {
 	}
 }
 
+// Another process rotated the single-use refresh token first: ours is
+// rejected, but the store already holds its valid replacement.
+func TestRefreshLostRaceUsesStoredTokens(t *testing.T) {
+	h := newHarness()
+	h.store.m["a"] = &tokenstore.Tokens{AccessToken: "old", RefreshToken: "rt", ExpiresAt: time.Now()}
+	h.m.RefreshFn = func(ctx context.Context, server, rt string) (*tokenstore.Tokens, error) {
+		_ = h.store.Save("a", &tokenstore.Tokens{AccessToken: "other", RefreshToken: "rt2", ExpiresAt: time.Now().Add(time.Hour)})
+		return nil, &auth.APIError{Status: 400}
+	}
+	v, err := h.m.Call(context.Background(), "a", nil, func(ctx context.Context, c *tmi.APIClient) (any, *http.Response, error) {
+		return tokenFrom(ctx), &http.Response{StatusCode: 200}, nil
+	})
+	if err != nil || v != "other" || h.logins.Load() != 0 {
+		t.Fatalf("%v %v logins=%d", v, err, h.logins.Load())
+	}
+}
+
 func TestUnauthorizedRetriesOnce(t *testing.T) {
 	h := newHarness()
 	h.store.m["a"] = &tokenstore.Tokens{AccessToken: "stale", RefreshToken: "rt", ExpiresAt: time.Now().Add(time.Hour)}
