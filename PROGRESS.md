@@ -23,6 +23,7 @@ Pushed work on `main` (github.com/ericfitz/tmi-mcp). Machine-local, in-flight st
 - Plan `docs/superpowers/plans/2026-09-28-distribution-and-init.md` executed; whole-branch review found no blockers, and its six findings were fixed.
 - `tmi-mcp version` (ldflags `main.version`, falling back to the module version for `go install`), `tmi-mcp init` (registers `tmi` with Claude Code/Codex/Grok via their CLIs; `--harness`, `--dry-run`), MCP server instructions (`internal/tools/server.go`).
 - Release tooling: `release/release.sh`, `release/tmi-mcp.rb.tmpl`, `release/notes-v1.0.0.md`. First release: v1.0.0.
+- Released v1.0.0 (signed, notarized): https://github.com/ericfitz/tmi-mcp/releases/tag/v1.0.0; tap formula `ericfitz/tap/tmi-mcp` (homebrew-tap 624dfea). Verified: brew install, `brew test`, Gatekeeper `Notarized Developer ID`, `tmi-mcp init` registered `tmi` in Claude Code, Codex, Grok.
 
 ## Open
 
