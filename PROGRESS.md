@@ -12,8 +12,13 @@ Pushed work on `main` (github.com/ericfitz/tmi-mcp). Machine-local, in-flight st
 - Verified: the live integration test passes against k3s dev (TMI 1.15.4, `tmi` provider) with a random port and with port 8765. Prod login on api.tmi.dev (allowlist `http://127.0.0.1:8765/*`) not yet exercised.
 - Closed tmi#69 ("TMI as MCP server") as fixed by this repo.
 
+## 2026-09-28 — refresh race fix; distribution spec
+
+- Fixed: a tmi-mcp process that loses a refresh race to another process (TMI refresh tokens are single-use) now reuses the rotated pair the winner saved instead of opening a browser login. Residual: if the loser's refresh fails before the winner saves, it still logs in; a cross-process lock would close that.
+- Prod Google login on api.tmi.dev verified 2026-09-27 (whoami, threat_models list).
+- Approved spec `docs/superpowers/specs/2026-09-28-distribution-and-init-design.md`: Homebrew tap release (signed, notarized, like agentbus), `tmi-mcp init` (register-only, Claude/Codex/Grok), `tmi-mcp version`, MCP server instructions. Next: implementation plan.
+
 ## Open
 
-- Exercise a real Google login against api.tmi.dev through the registered MCP server.
 - If api.tmi.dev adds `http://127.0.0.1:*` (the RFC 8252 matcher shipped in TMI 1.15.1+), `callback_port` can be dropped from the prod profile.
 - Deferred minor review findings (e.g. Logout not taking the profile lock; concurrent 401s each refreshing) — see the review notes in git history for the plan execution.
