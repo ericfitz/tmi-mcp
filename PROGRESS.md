@@ -25,7 +25,12 @@ Pushed work on `main` (github.com/ericfitz/tmi-mcp). Machine-local, in-flight st
 - Release tooling: `release/release.sh`, `release/tmi-mcp.rb.tmpl`, `release/notes-v1.0.0.md`. First release: v1.0.0.
 - Released v1.0.0 (signed, notarized): https://github.com/ericfitz/tmi-mcp/releases/tag/v1.0.0; tap formula `ericfitz/tap/tmi-mcp` (homebrew-tap 624dfea). Verified: brew install, `brew test`, Gatekeeper `Notarized Developer ID`, `tmi-mcp init` registered `tmi` in Claude Code, Codex, Grok.
 
+## 2026-09-28 — v1.0.1 token fixes
+
+- Cross-process flock on `<tokens>/<profile>.lock` around login, refresh and logout (closes the refresh-race residual above); concurrent 401s share one refresh; Logout takes the profile lock.
+- Released v1.0.1 (signed, notarized): https://github.com/ericfitz/tmi-mcp/releases/tag/v1.0.1; tap homebrew-tap da3227d. Verified: brew upgrade, Gatekeeper `Notarized Developer ID`, prod `whoami` via the brew binary (creates `tokens/prod.lock`).
+- tmi approved `http://127.0.0.1:*` on api.tmi.dev (tmi PR #982); ships with the next AWS deploy. Keep `callback_port: 8765` until tmi confirms it is live.
+
 ## Open
 
-- If api.tmi.dev adds `http://127.0.0.1:*` (the RFC 8252 matcher shipped in TMI 1.15.1+), `callback_port` can be dropped from the prod profile.
-- Deferred minor review findings (e.g. Logout not taking the profile lock; concurrent 401s each refreshing) — see the review notes in git history for the plan execution.
+- When tmi DMs that `http://127.0.0.1:*` is live on api.tmi.dev (PR #982), verify a random-port prod login, then drop `callback_port: 8765` from `internal/cli/init.go`'s sample config and the README prod example.
