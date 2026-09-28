@@ -103,7 +103,7 @@ test asserting `tmi-mcp version` equals the formula version.
 
 `dist/` is added to `.gitignore`. The script needs the user's keychain
 (signing, notarization) and SSH (tap push), so only the user runs it. First
-tag: `v0.1.0`.
+tag: `v1.0.0` (user decision 2026-09-28, replacing `v0.1.0`).
 
 ### 4. Server instructions
 

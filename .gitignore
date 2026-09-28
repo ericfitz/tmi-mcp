@@ -37,3 +37,6 @@ HANDOFF.md
 
 # Build output
 bin/
+
+# Release output
+dist/

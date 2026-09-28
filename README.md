@@ -9,9 +9,21 @@ persists across restarts (OS keychain, file fallback).
 
 ## Install
 
+macOS, with Homebrew:
+
+```sh
+brew install ericfitz/tap/tmi-mcp
+tmi-mcp init
+```
+
+Elsewhere, with Go:
+
 ```sh
 go install github.com/ericfitz/tmi-mcp/cmd/tmi-mcp@latest
+tmi-mcp init
 ```
+
+`tmi-mcp version` prints the installed version.
 
 ## Configure
 
@@ -56,16 +68,27 @@ entry.
 The `tmi` identity provider (`idp: tmi`) is dev-only — it exists for local
 TMI servers and test users like `login_hint: alice`, not production.
 
-## Claude Code setup
+## Harness setup
+
+`tmi-mcp init` registers the server as `tmi` with every agent harness it
+finds (Claude Code, Codex, Grok Build, detected by `~/.claude`, `~/.codex`,
+`~/.grok`) through each harness's own CLI. It is safe to rerun. If a
+harness's CLI is not on PATH, it prints the config snippet to add by hand;
+if you have no config file yet, it prints a sample. Restart the harness
+afterward.
+
+- `--harness claude|codex|grok` configures only that harness, even if it is
+  not detected.
+- `--dry-run` prints the commands without running them.
+
+The server sends usage instructions to the harness when it connects, so the
+agent learns how the tools fit together without extra setup.
+
+To register by hand, or to pin a profile:
 
 ```sh
-claude mcp add tmi -- tmi-mcp
-```
-
-To pin a profile:
-
-```sh
-claude mcp add tmi -- tmi-mcp --profile local
+claude mcp add -s user tmi -- tmi-mcp
+claude mcp add -s user tmi -- tmi-mcp --profile local
 ```
 
 ## Tools
