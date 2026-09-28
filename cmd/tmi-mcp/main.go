@@ -12,13 +12,33 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/ericfitz/tmi-mcp/internal/cli"
 	"github.com/ericfitz/tmi-mcp/internal/config"
 	"github.com/ericfitz/tmi-mcp/internal/session"
 	"github.com/ericfitz/tmi-mcp/internal/tokenstore"
 	"github.com/ericfitz/tmi-mcp/internal/tools"
 )
 
+// version is set at release time with -ldflags "-X main.version=<ver>".
+var version = "dev"
+
+// subcommand returns the subcommand named by args[0], or "" to run the server.
+func subcommand(args []string) string {
+	if len(args) > 0 && (args[0] == "version" || args[0] == "init") {
+		return args[0]
+	}
+	return ""
+}
+
 func main() {
+	switch subcommand(os.Args[1:]) {
+	case "version":
+		fmt.Println(version)
+		return
+	case "init":
+		os.Exit(cli.Main(os.Args[2:], os.Stdout, os.Stderr))
+	}
+
 	dir, err := config.Dir()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "tmi-mcp:", err)
@@ -45,8 +65,7 @@ func main() {
 		}
 	}
 
-	srv := mcp.NewServer(&mcp.Implementation{Name: "tmi-mcp", Version: "0.1.0"}, nil)
-	tools.Register(srv, &tools.Deps{S: m})
+	srv := tools.NewServer(version, &tools.Deps{S: m})
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
