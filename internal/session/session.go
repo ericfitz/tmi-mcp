@@ -73,16 +73,34 @@ func (m *Manager) Profile(name string) (config.Profile, error) {
 
 func noop(string) {}
 
-// lockFor returns the per-profile mutex, creating it if needed.
-func (m *Manager) lockFor(name string) *sync.Mutex {
+// crossProcessLocker is implemented by stores that can lock a profile
+// across tmi-mcp processes (tokenstore.Store).
+type crossProcessLocker interface {
+	Lock(ctx context.Context, profile string) (func(), error)
+}
+
+// lock takes the per-profile mutex and, when the store supports it, the
+// cross-process profile lock, so concurrent callers in any tmi-mcp process
+// share one login/refresh. Call the returned func to release both.
+func (m *Manager) lock(ctx context.Context, name string) (func(), error) {
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	l, ok := m.locks[name]
 	if !ok {
 		l = &sync.Mutex{}
 		m.locks[name] = l
 	}
-	return l
+	m.mu.Unlock()
+
+	l.Lock()
+	if cl, ok := m.Store.(crossProcessLocker); ok {
+		unlock, err := cl.Lock(ctx, name)
+		if err != nil {
+			l.Unlock()
+			return nil, fmt.Errorf("lock profile %s: %w", name, err)
+		}
+		return func() { unlock(); l.Unlock() }, nil
+	}
+	return l.Unlock, nil
 }
 
 // client returns the cached *tmi.APIClient for p, creating it if needed.
@@ -97,7 +115,7 @@ func (m *Manager) client(p config.Profile) *tmi.APIClient {
 	return c
 }
 
-// token returns a valid access token for p, holding the per-profile lock for
+// token returns a valid access token for p, holding the profile lock for
 // the whole acquire so concurrent callers share one login/refresh. The
 // second return value reports whether an interactive login was performed
 // (as opposed to a cache hit or a token refresh). forceRefresh skips the
@@ -105,9 +123,11 @@ func (m *Manager) client(p config.Profile) *tmi.APIClient {
 // is set and the store already holds a different valid one: then another
 // caller has refreshed since, and its token is used.
 func (m *Manager) token(ctx context.Context, p config.Profile, n Notify, forceRefresh bool, rejected string) (*tokenstore.Tokens, bool, error) {
-	lock := m.lockFor(p.Name)
-	lock.Lock()
-	defer lock.Unlock()
+	unlock, err := m.lock(ctx, p.Name)
+	if err != nil {
+		return nil, false, err
+	}
+	defer unlock()
 
 	tok, err := m.Store.Load(p.Name)
 	if err != nil {
@@ -124,8 +144,9 @@ func (m *Manager) token(ctx context.Context, p config.Profile, n Notify, forceRe
 			}
 			return refreshed, false, nil
 		}
-		// Refresh tokens are single-use, and the mutex above is per process:
-		// another tmi-mcp may have rotated ours first and saved the new pair.
+		// Refresh tokens are single-use. If the store could not lock across
+		// processes, another tmi-mcp may have rotated ours first and saved
+		// the new pair.
 		if cur, lerr := m.Store.Load(p.Name); lerr == nil && cur != nil &&
 			cur.RefreshToken != tok.RefreshToken && cur.Valid(m.Now()) {
 			return cur, false, nil
@@ -183,9 +204,11 @@ func (m *Manager) Login(ctx context.Context, profile string, n Notify) error {
 	if err != nil {
 		return err
 	}
-	lock := m.lockFor(p.Name)
-	lock.Lock()
-	defer lock.Unlock()
+	unlock, err := m.lock(ctx, p.Name)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 
 	if n == nil {
 		n = noop
@@ -220,9 +243,11 @@ func (m *Manager) Logout(ctx context.Context, profile string) error {
 	if err != nil {
 		return err
 	}
-	lock := m.lockFor(p.Name)
-	lock.Lock()
-	defer lock.Unlock()
+	unlock, err := m.lock(ctx, p.Name)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 
 	tok, err := m.Store.Load(p.Name)
 	if err != nil {

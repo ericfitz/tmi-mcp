@@ -291,3 +291,34 @@ func TestConcurrent401sShareOneRefresh(t *testing.T) {
 		t.Fatalf("refreshs=%d, want 1", h.refreshs.Load())
 	}
 }
+
+type lockingStore struct {
+	*memStore
+	held, locks int
+}
+
+func (s *lockingStore) Lock(ctx context.Context, p string) (func(), error) {
+	s.held++
+	s.locks++
+	return func() { s.held-- }, nil
+}
+
+// A store that locks across processes is locked for the whole token acquire
+// and released afterwards.
+func TestCrossProcessLockHeldDuringAcquire(t *testing.T) {
+	h := newHarness()
+	ls := &lockingStore{memStore: h.store}
+	h.m.Store = ls
+	h.m.LoginFn = func(ctx context.Context, p config.Profile, n func(string)) (*tokenstore.Tokens, error) {
+		if ls.held != 1 {
+			t.Errorf("login ran without the cross-process lock (held=%d)", ls.held)
+		}
+		return &tokenstore.Tokens{AccessToken: "login", ExpiresAt: time.Now().Add(time.Hour)}, nil
+	}
+	_, err := h.m.Call(context.Background(), "a", nil, func(ctx context.Context, c *tmi.APIClient) (any, *http.Response, error) {
+		return nil, &http.Response{StatusCode: 200}, nil
+	})
+	if err != nil || ls.locks != 1 || ls.held != 0 {
+		t.Fatalf("err=%v locks=%d held=%d", err, ls.locks, ls.held)
+	}
+}

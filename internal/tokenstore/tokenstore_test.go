@@ -1,6 +1,7 @@
 package tokenstore
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -131,4 +132,24 @@ func TestValid(t *testing.T) {
 	if (&Tokens{ExpiresAt: now.Add(time.Hour)}).Valid(now) {
 		t.Fatal("empty token must be invalid")
 	}
+}
+
+func TestLockExcludesOtherHolders(t *testing.T) {
+	dir := t.TempDir()
+	a, b := &Store{Dir: dir}, &Store{Dir: dir}
+	unlock, err := a.Lock(context.Background(), "p")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
+	defer cancel()
+	if _, err := b.Lock(ctx, "p"); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("second Lock while held: err=%v, want deadline exceeded", err)
+	}
+	unlock()
+	unlock2, err := b.Lock(context.Background(), "p")
+	if err != nil {
+		t.Fatalf("Lock after release: %v", err)
+	}
+	unlock2()
 }
