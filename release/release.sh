@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Build, sign, notarize, and publish a macOS release of tmi-mcp, then update
 # the Homebrew tap. Builds from the tag, so HEAD may be anywhere.
-#   ./release/release.sh v0.1.1
+#   ./release/release.sh v1.0.0 (tag it and push the tag first)
 # One-time setup: a notarytool keychain profile named $NOTARY_PROFILE, created
 # with `xcrun notarytool store-credentials` (Apple ID + app-specific password).
 set -euo pipefail

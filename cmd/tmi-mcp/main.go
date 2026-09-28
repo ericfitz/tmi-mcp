@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime/debug"
 	"syscall"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -30,10 +31,21 @@ func subcommand(args []string) string {
 	return ""
 }
 
+// buildVersion is version, or for a `go install` build (no ldflags) the
+// module version recorded in the binary.
+func buildVersion() string {
+	if version == "dev" {
+		if bi, ok := debug.ReadBuildInfo(); ok && bi.Main.Version != "" && bi.Main.Version != "(devel)" {
+			return bi.Main.Version
+		}
+	}
+	return version
+}
+
 func main() {
 	switch subcommand(os.Args[1:]) {
 	case "version":
-		fmt.Println(version)
+		fmt.Println(buildVersion())
 		return
 	case "init":
 		os.Exit(cli.Main(os.Args[2:], os.Stdout, os.Stderr))
@@ -48,6 +60,10 @@ func main() {
 	configPath := flag.String("config", filepath.Join(dir, "config.yaml"), "path to config.yaml")
 	profile := flag.String("profile", "", "profile name to use (overrides default_profile)")
 	flag.Parse()
+	if flag.NArg() > 0 {
+		fmt.Fprintf(os.Stderr, "tmi-mcp: unknown argument %q (subcommands go first: tmi-mcp init|version)\n", flag.Arg(0))
+		os.Exit(2)
+	}
 
 	cfg, err := config.Load(*configPath)
 	if err != nil {
@@ -65,7 +81,7 @@ func main() {
 		}
 	}
 
-	srv := tools.NewServer(version, &tools.Deps{S: m})
+	srv := tools.NewServer(buildVersion(), &tools.Deps{S: m})
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

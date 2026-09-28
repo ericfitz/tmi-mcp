@@ -60,7 +60,7 @@ func TestClaudeOnly(t *testing.T) {
 	if err := in.Init(); err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"claude mcp remove -s user tmi", "claude mcp add -s user tmi -- tmi-mcp"}
+	want := []string{"claude mcp remove tmi", "claude mcp add -s user tmi -- tmi-mcp"}
 	if !reflect.DeepEqual(f.calls, want) {
 		t.Fatalf("calls = %q", f.calls)
 	}
@@ -72,7 +72,7 @@ func TestAllHarnesses(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []string{
-		"claude mcp remove -s user tmi", "claude mcp add -s user tmi -- tmi-mcp",
+		"claude mcp remove tmi", "claude mcp add -s user tmi -- tmi-mcp",
 		"codex mcp remove tmi", "codex mcp add tmi -- tmi-mcp",
 		"grok mcp remove --scope user tmi", "grok mcp add --scope user tmi -- tmi-mcp",
 	}

@@ -23,7 +23,7 @@ type harness struct {
 func harnesses(home string) []harness {
 	return []harness{
 		{"claude", filepath.Join(home, ".claude"),
-			[]string{"mcp", "remove", "-s", "user", "tmi"},
+			[]string{"mcp", "remove", "tmi"}, // every scope: an old local-scope entry would shadow user scope
 			[]string{"mcp", "add", "-s", "user", "tmi", "--", "tmi-mcp"},
 			`{ "mcpServers": { "tmi": { "command": "tmi-mcp" } } } in ~/.claude.json`},
 		{"codex", filepath.Join(home, ".codex"),
@@ -85,7 +85,7 @@ func (in *Initer) Init() error {
 		}
 	}
 	if _, err := os.Stat(in.ConfigPath); errors.Is(err, os.ErrNotExist) {
-		in.say("no config at %s; create it, for example:\n\n%s\n", in.ConfigPath, sampleConfig)
+		in.say("no config at the default path %s; create it, for example:\n\n%s\n", in.ConfigPath, sampleConfig)
 	}
 	in.say("done: restart the harness; the first tmi tool call opens a browser to log in")
 	return nil
@@ -119,6 +119,9 @@ func Main(args []string, stdout, stderr io.Writer) int {
 	h := fs.String("harness", "", "configure only this harness (claude, codex, or grok), even if it is not detected")
 	dry := fs.Bool("dry-run", false, "print what would run without running anything")
 	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
 		return 2
 	}
 	home, err := os.UserHomeDir()
