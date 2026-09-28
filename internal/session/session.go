@@ -100,8 +100,11 @@ func (m *Manager) client(p config.Profile) *tmi.APIClient {
 // token returns a valid access token for p, holding the per-profile lock for
 // the whole acquire so concurrent callers share one login/refresh. The
 // second return value reports whether an interactive login was performed
-// (as opposed to a cache hit or a token refresh).
-func (m *Manager) token(ctx context.Context, p config.Profile, n Notify, forceRefresh bool) (*tokenstore.Tokens, bool, error) {
+// (as opposed to a cache hit or a token refresh). forceRefresh skips the
+// cached token, unless rejected (the access token the server just refused)
+// is set and the store already holds a different valid one: then another
+// caller has refreshed since, and its token is used.
+func (m *Manager) token(ctx context.Context, p config.Profile, n Notify, forceRefresh bool, rejected string) (*tokenstore.Tokens, bool, error) {
 	lock := m.lockFor(p.Name)
 	lock.Lock()
 	defer lock.Unlock()
@@ -110,7 +113,7 @@ func (m *Manager) token(ctx context.Context, p config.Profile, n Notify, forceRe
 	if err != nil {
 		return nil, false, fmt.Errorf("load tokens for profile %s: %w", p.Name, err)
 	}
-	if tok != nil && !forceRefresh && tok.Valid(m.Now()) {
+	if tok != nil && tok.Valid(m.Now()) && (!forceRefresh || (rejected != "" && tok.AccessToken != rejected)) {
 		return tok, false, nil
 	}
 	if tok != nil && tok.RefreshToken != "" {
@@ -151,7 +154,7 @@ func (m *Manager) Call(ctx context.Context, profile string, n Notify, fn CallFun
 		return nil, err
 	}
 
-	tok, _, err := m.token(ctx, p, n, false)
+	tok, _, err := m.token(ctx, p, n, false, "")
 	if err != nil {
 		return nil, err
 	}
@@ -159,7 +162,7 @@ func (m *Manager) Call(ctx context.Context, profile string, n Notify, fn CallFun
 	v, resp, err := fn(ctx2, m.client(p))
 
 	if resp != nil && resp.StatusCode == http.StatusUnauthorized {
-		tok, _, tokErr := m.token(ctx, p, n, true)
+		tok, _, tokErr := m.token(ctx, p, n, true, tok.AccessToken)
 		if tokErr != nil {
 			return nil, tokErr
 		}
@@ -205,7 +208,7 @@ func (m *Manager) Refresh(ctx context.Context, profile string, n Notify) (logged
 	if err != nil {
 		return false, err
 	}
-	_, loggedIn, err = m.token(ctx, p, n, true)
+	_, loggedIn, err = m.token(ctx, p, n, true, "")
 	return loggedIn, err
 }
 

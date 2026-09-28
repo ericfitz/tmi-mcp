@@ -259,3 +259,35 @@ func TestLogoutWaitsForInFlightLogin(t *testing.T) {
 		t.Fatalf("tokens survived logout: %+v", h.store.m["a"])
 	}
 }
+
+// Concurrent calls that all get a 401 on the same stale token share one
+// refresh: later ones reuse the token the first one stored.
+func TestConcurrent401sShareOneRefresh(t *testing.T) {
+	h := newHarness()
+	h.store.m["a"] = &tokenstore.Tokens{AccessToken: "stale", RefreshToken: "rt", ExpiresAt: time.Now().Add(time.Hour)}
+	var got401 sync.WaitGroup
+	got401.Add(8)
+	var wg sync.WaitGroup
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			first := true
+			_, _ = h.m.Call(context.Background(), "a", nil, func(ctx context.Context, c *tmi.APIClient) (any, *http.Response, error) {
+				if tokenFrom(ctx) == "stale" {
+					if first {
+						first = false
+						got401.Done()
+						got401.Wait() // all eight hold the stale token before any refresh
+					}
+					return nil, &http.Response{StatusCode: 401}, errors.New("401 Unauthorized")
+				}
+				return nil, &http.Response{StatusCode: 200}, nil
+			})
+		}()
+	}
+	wg.Wait()
+	if h.refreshs.Load() != 1 {
+		t.Fatalf("refreshs=%d, want 1", h.refreshs.Load())
+	}
+}
