@@ -18,6 +18,12 @@ Pushed work on `main` (github.com/ericfitz/tmi-mcp). Machine-local, in-flight st
 - Prod Google login on api.tmi.dev verified 2026-09-27 (whoami, threat_models list).
 - Approved spec `docs/superpowers/specs/2026-09-28-distribution-and-init-design.md`: Homebrew tap release (signed, notarized, like agentbus), `tmi-mcp init` (register-only, Claude/Codex/Grok), `tmi-mcp version`, MCP server instructions. Next: implementation plan.
 
+## 2026-09-28 — distribution and init implemented
+
+- Plan `docs/superpowers/plans/2026-09-28-distribution-and-init.md` executed; whole-branch review found no blockers, and its six findings were fixed.
+- `tmi-mcp version` (ldflags `main.version`, falling back to the module version for `go install`), `tmi-mcp init` (registers `tmi` with Claude Code/Codex/Grok via their CLIs; `--harness`, `--dry-run`), MCP server instructions (`internal/tools/server.go`).
+- Release tooling: `release/release.sh`, `release/tmi-mcp.rb.tmpl`, `release/notes-v1.0.0.md`. First release: v1.0.0.
+
 ## Open
 
 - If api.tmi.dev adds `http://127.0.0.1:*` (the RFC 8252 matcher shipped in TMI 1.15.1+), `callback_port` can be dropped from the prod profile.
