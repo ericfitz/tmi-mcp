@@ -227,3 +227,35 @@ func TestLogoutRevokesAndDeletes(t *testing.T) {
 		t.Fatalf("revoked=%q revokedAccess=%q stored=%v", revoked, revokedAccess, h.store.m["a"])
 	}
 }
+
+// A logout issued while a login is in flight must win: the login's tokens
+// may not be saved back after the delete.
+func TestLogoutWaitsForInFlightLogin(t *testing.T) {
+	h := newHarness()
+	started, release := make(chan struct{}), make(chan struct{})
+	h.m.LoginFn = func(ctx context.Context, p config.Profile, n func(string)) (*tokenstore.Tokens, error) {
+		close(started)
+		<-release
+		return &tokenstore.Tokens{AccessToken: "login", RefreshToken: "rt", ExpiresAt: time.Now().Add(time.Hour)}, nil
+	}
+	h.m.RevokeFn = func(context.Context, string, string, string) error { return nil }
+	callDone := make(chan struct{})
+	go func() {
+		defer close(callDone)
+		_, _ = h.m.Call(context.Background(), "a", nil, func(ctx context.Context, c *tmi.APIClient) (any, *http.Response, error) {
+			return nil, &http.Response{StatusCode: 200}, nil
+		})
+	}()
+	<-started
+	logoutDone := make(chan error)
+	go func() { logoutDone <- h.m.Logout(context.Background(), "a") }()
+	time.Sleep(20 * time.Millisecond) // let Logout reach the lock
+	close(release)
+	<-callDone
+	if err := <-logoutDone; err != nil {
+		t.Fatal(err)
+	}
+	if h.store.m["a"] != nil {
+		t.Fatalf("tokens survived logout: %+v", h.store.m["a"])
+	}
+}

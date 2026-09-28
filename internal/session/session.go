@@ -210,12 +210,17 @@ func (m *Manager) Refresh(ctx context.Context, profile string, n Notify) (logged
 }
 
 // Logout best-effort revokes the stored refresh token, then deletes the
-// stored tokens for profile.
+// stored tokens for profile. It holds the per-profile lock so a login or
+// refresh in flight cannot save tokens back after the delete.
 func (m *Manager) Logout(ctx context.Context, profile string) error {
 	p, err := m.Profile(profile)
 	if err != nil {
 		return err
 	}
+	lock := m.lockFor(p.Name)
+	lock.Lock()
+	defer lock.Unlock()
+
 	tok, err := m.Store.Load(p.Name)
 	if err != nil {
 		return fmt.Errorf("load tokens for profile %s: %w", p.Name, err)
