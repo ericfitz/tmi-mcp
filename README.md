@@ -37,6 +37,7 @@ profiles:
   prod:
     server: https://api.tmi.dev
     idp: google
+    callback_port: 8765
   local:
     server: http://localhost:8080
     idp: tmi
