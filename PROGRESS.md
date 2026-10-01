@@ -31,6 +31,10 @@ Pushed work on `main` (github.com/ericfitz/tmi-mcp). Machine-local, in-flight st
 - Released v1.0.1 (signed, notarized): https://github.com/ericfitz/tmi-mcp/releases/tag/v1.0.1; tap homebrew-tap da3227d. Verified: brew upgrade, Gatekeeper `Notarized Developer ID`, prod `whoami` via the brew binary (creates `tokens/prod.lock`).
 - tmi approved `http://127.0.0.1:*` on api.tmi.dev (tmi PR #982); ships with the next AWS deploy. Keep `callback_port: 8765` until tmi confirms it is live.
 
+## 2026-10-01 — random-port login on prod
+
+- tmi #982 deployed (api.tmi.dev server 1.17.0). Verified a random-port prod login via the brew binary. Dropped `callback_port` from the sample config and README examples, and reworded the README server prerequisite (9445b9e). tmi-wiki MCP-Integration change approved.
+
 ## Open
 
-- When tmi DMs that `http://127.0.0.1:*` is live on api.tmi.dev (PR #982), verify a random-port prod login, then drop `callback_port: 8765` from `internal/cli/init.go`'s sample config and the README prod example.
+- Nothing open. tmi-clients may relax DisallowUnknownFields; then remove `rawOnDecodeErr`.
