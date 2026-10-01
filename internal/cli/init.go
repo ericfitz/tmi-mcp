@@ -41,8 +41,7 @@ const sampleConfig = `default_profile: prod
 profiles:
   prod:
     server: https://api.tmi.dev
-    idp: google
-    callback_port: 8765`
+    idp: google`
 
 // Initer registers the tmi MCP server with installed agent harnesses.
 type Initer struct {

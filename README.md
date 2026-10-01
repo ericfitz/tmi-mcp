@@ -37,12 +37,10 @@ profiles:
   prod:
     server: https://api.tmi.dev
     idp: google
-    callback_port: 8765
   local:
     server: http://localhost:8080
     idp: tmi
     login_hint: alice
-    callback_port: 8765
 ```
 
 `--profile` overrides `default_profile` for the process; any tool call can
@@ -54,14 +52,17 @@ one; leave it unset unless the server prerequisite below requires it.
 
 Each target TMI server must allow the loopback OAuth callback tmi-mcp uses
 for login, via that server's `auth.oauth.client_callback_allowlist` config (or
-env `TMI_OAUTH_CLIENT_CALLBACK_ALLOWLIST`). TMI's allowlist matcher is a raw
-string-prefix check, so there are two options:
+env `TMI_OAUTH_CLIENT_CALLBACK_ALLOWLIST`). Two options:
 
+- Add `http://127.0.0.1:*` and leave `callback_port` unset; tmi-mcp picks a
+  random port. `api.tmi.dev` allows this. Current TMI servers treat the entry
+  as a loopback any-port pattern and reject callback URLs with userinfo.
 - Set `callback_port: 8765` (or any fixed port) on the profile and add
-  `http://127.0.0.1:8765/*` to the allowlist. Safe with the current matcher.
-- Do **not** use the wildcard-port form `http://127.0.0.1:*` — with a prefix
-  matcher it also matches `http://127.0.0.1:1@evil.example/...`. Avoid it
-  until TMI's matcher parses URLs instead of prefix-matching strings.
+  `http://127.0.0.1:8765/*` to the allowlist.
+
+Do **not** add `http://127.0.0.1:*` to an older TMI server whose matcher is a
+raw string-prefix check: there it also matches
+`http://127.0.0.1:1@evil.example/...`. Use the fixed-port option instead.
 
 Without an allowlist entry, login fails fast with an error naming the missing
 entry.
