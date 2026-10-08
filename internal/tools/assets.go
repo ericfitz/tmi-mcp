@@ -6,7 +6,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	tmi "github.com/ericfitz/tmi-clients/go-client-generated/v1_15_0"
+	tmi "github.com/ericfitz/tmi-clients/go-client-generated/v2_0_0/v2"
 )
 
 const assetsDescription = "Assets (systems, data stores, etc.) scoped to a threat model in TMI. Actions: " +

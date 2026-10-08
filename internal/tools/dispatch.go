@@ -9,7 +9,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	tmi "github.com/ericfitz/tmi-clients/go-client-generated/v1_15_0"
+	tmi "github.com/ericfitz/tmi-clients/go-client-generated/v2_0_0/v2"
 )
 
 // boundOps is subOps (subresource.go) or orgOps (projects.go) with any

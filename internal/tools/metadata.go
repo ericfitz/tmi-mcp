@@ -10,7 +10,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	tmi "github.com/ericfitz/tmi-clients/go-client-generated/v1_15_0"
+	tmi "github.com/ericfitz/tmi-clients/go-client-generated/v2_0_0/v2"
 	"github.com/ericfitz/tmi-mcp/internal/auth"
 )
 

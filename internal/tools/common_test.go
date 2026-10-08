@@ -176,7 +176,7 @@ func TestDfdDiagramDecodesTypedWithRealCells(t *testing.T) {
 	if len(got.Cells) != 2 || got.Cells[0].Node == nil || got.Cells[1].Edge == nil {
 		t.Fatalf("cells not typed as Node/Edge: %+v", got.Cells)
 	}
-	if *got.Cells[0].Node.Shape != "actor" || got.Cells[1].Edge.Source.Cell != "11111111-1111-1111-1111-111111111111" {
+	if got.Cells[0].Node.Shape != "actor" || got.Cells[1].Edge.Source.Cell != "11111111-1111-1111-1111-111111111111" {
 		t.Fatalf("cell fields wrong: %+v", got.Cells)
 	}
 }
