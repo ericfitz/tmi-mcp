@@ -35,10 +35,15 @@ const diagramEdgeJSON = `{"id":"22222222-2222-2222-2222-222222222222","shape":"f
 const diagramJSON = `{"id":"dg-1","name":"Diagram1","type":"DFD","cells":[` + diagramNodeJSON + `,` + diagramEdgeJSON + `],"created_at":"2024-01-01T00:00:00Z","modified_at":"2024-01-01T00:00:00Z"}`
 
 // diagramWithUnknownFieldJSON is diagramJSON plus a field absent from the
-// vendored client's spec. Every generated model decodes with
-// DisallowUnknownFields, so this is a genuine decode error from a
-// successful (2xx) response — the case rawOnDecodeErr guards against.
+// vendored client's spec. The generated client ignores unknown response
+// fields, so this decodes typed and future_field is dropped.
 const diagramWithUnknownFieldJSON = `{"id":"dg-1","name":"Diagram1","type":"DFD","cells":[],"created_at":"2024-01-01T00:00:00Z","modified_at":"2024-01-01T00:00:00Z","future_field":"x"}`
+
+// diagramWithUnknownShapeJSON is a diagram whose one node has a shape outside
+// the vendored client's Node shape enum. The generated client rejects it, so
+// this is a genuine decode error from a successful (2xx) response — the case
+// rawOnDecodeErr guards against.
+const diagramWithUnknownShapeJSON = `{"id":"dg-1","name":"Diagram1","type":"DFD","cells":[{"id":"11111111-1111-1111-1111-111111111111","shape":"future-shape","position":{"x":10,"y":20},"size":{"width":40,"height":40}}],"created_at":"2024-01-01T00:00:00Z","modified_at":"2024-01-01T00:00:00Z"}`
 
 // diagramListItemJSON is a canned DiagramListItem (required: id, name, type,
 // created_at, modified_at; see model_diagram_list_item.go).
@@ -69,9 +74,8 @@ const listDocumentsJSON = `{"documents":[` + documentJSON + `],"total":1,"limit"
 // noteJSON is a canned Note (required: name, content, id; see model_note.go).
 const noteJSON = `{"id":"note-1","name":"Note1","content":"note text"}`
 
-// noteListItemJSON is a canned NoteListItem (required: name, id; the decoder
-// rejects unknown fields, so it cannot reuse noteJSON's "content"; see
-// model_note_list_item.go).
+// noteListItemJSON is a canned NoteListItem (required: name, id; it has no
+// "content" field, unlike noteJSON; see model_note_list_item.go).
 const noteListItemJSON = `{"id":"note-1","name":"Note1"}`
 
 // listNotesJSON is a canned ListNotesResponse (required: notes, total,

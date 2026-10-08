@@ -181,17 +181,33 @@ func TestDfdDiagramDecodesTypedWithRealCells(t *testing.T) {
 	}
 }
 
-func TestRawOnDecodeErr2xxJSONBodyReturnsRaw(t *testing.T) {
-	// diagramWithUnknownFieldJSON carries a field absent from the vendored
-	// client's spec, which DisallowUnknownFields naturally turns into a
-	// *tmi.GenericOpenAPIError this helper targets (see rawOnDecodeErr's doc
-	// comment).
+// TestDfdDiagramIgnoresUnknownField proves the generated client decodes a
+// response carrying a field absent from its spec, dropping the field, so
+// rawOnDecodeErr is not involved for that case.
+func TestDfdDiagramIgnoresUnknownField(t *testing.T) {
 	resp, err := execDiagramGet(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(diagramWithUnknownFieldJSON))
 	}))
+	if err != nil {
+		t.Fatalf("typed decode failed: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d", resp.StatusCode)
+	}
+}
+
+func TestRawOnDecodeErr2xxJSONBodyReturnsRaw(t *testing.T) {
+	// diagramWithUnknownShapeJSON has a node shape outside the vendored
+	// client's enum, which the generated client turns into a
+	// *tmi.GenericOpenAPIError this helper targets (see rawOnDecodeErr's doc
+	// comment).
+	resp, err := execDiagramGet(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(diagramWithUnknownShapeJSON))
+	}))
 	if err == nil {
-		t.Fatal("want an unknown-field decode error")
+		t.Fatal("want an unknown-shape decode error")
 	}
 
 	v, gotResp, gotErr := rawOnDecodeErr(nil, resp, err)
@@ -205,8 +221,11 @@ func TestRawOnDecodeErr2xxJSONBodyReturnsRaw(t *testing.T) {
 	if !ok {
 		t.Fatalf("want json.RawMessage, got %T", v)
 	}
-	var m map[string]any
-	if err := json.Unmarshal(raw, &m); err != nil || m["id"] != "dg-1" {
+	var m struct {
+		ID    string           `json:"id"`
+		Cells []map[string]any `json:"cells"`
+	}
+	if err := json.Unmarshal(raw, &m); err != nil || m.ID != "dg-1" || len(m.Cells) != 1 || m.Cells[0]["shape"] != "future-shape" {
 		t.Fatalf("raw = %s, err = %v", raw, err)
 	}
 }

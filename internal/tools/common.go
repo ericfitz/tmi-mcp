@@ -104,11 +104,9 @@ func compactList(v any) (any, error) {
 }
 
 // call runs fn against a session for profile, notifying req's caller, and
-// tolerates unknown response fields on every tool via rawOnDecodeErr — every
-// generated TMI model decodes with DisallowUnknownFields, so a server newer
-// than the vendored client's spec would otherwise make any get/create/update
-// fail to decode. This is the single place all tools route session calls
-// through; add a new tool by calling this instead of d.S.Call directly.
+// tolerates response values newer than the vendored client's spec on every
+// tool via rawOnDecodeErr. This is the single place all tools route session
+// calls through; add a new tool by calling this instead of d.S.Call directly.
 func (d *Deps) call(ctx context.Context, req *mcp.CallToolRequest, profile string, fn session.CallFunc) (any, error) {
 	return d.S.Call(ctx, profile, notifier(ctx, req), func(ctx context.Context, c *tmi.APIClient) (any, *http.Response, error) {
 		return rawOnDecodeErr(fn(ctx, c))
@@ -121,10 +119,11 @@ func (d *Deps) call(ctx context.Context, req *mcp.CallToolRequest, profile strin
 // unchanged. Every tool's session call is routed through this via d.call, so
 // it covers all tools, not just diagrams.
 //
-// Every generated TMI model decodes with DisallowUnknownFields, so a server
-// newer than the vendored client's spec (a response field the client's
-// OpenAPI spec doesn't know about yet) would otherwise make any get/create/
-// update fail to decode. This is the guard for that case.
+// The generated client (v2.0.1+) ignores unknown response fields but still
+// rejects values outside a spec enum, such as a TeamStatus or a diagram node
+// shape added by a server newer than the vendored client's spec. That would
+// otherwise make any get/create/update fail to decode, and a single unknown
+// node shape fails the whole diagram. This is the guard for that case.
 func rawOnDecodeErr(v any, resp *http.Response, err error) (any, *http.Response, error) {
 	if err == nil || resp == nil || resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return v, resp, err

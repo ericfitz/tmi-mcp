@@ -55,12 +55,11 @@ func TestThreatsDelete(t *testing.T) {
 	}
 }
 
-// TestThreatsGetToleratesUnknownField exercises d.call's rawOnDecodeErr path
-// (see common.go) for a tool other than diagrams: a server newer than the
-// vendored client's spec that adds a response field would otherwise make
-// Threat's DisallowUnknownFields decode fail. The tool must still succeed
-// and the extra field must survive in the result.
-func TestThreatsGetToleratesUnknownField(t *testing.T) {
+// TestThreatsGetDropsUnknownField pins the generated client's handling of a
+// response field newer than its spec: the tool succeeds and the field is
+// dropped from the result. (Unknown enum values are a different case; see
+// TestTeamsGetToleratesUnknownStatus.)
+func TestThreatsGetDropsUnknownField(t *testing.T) {
 	const threatWithExtraFieldJSON = `{"id":"th-1","name":"SQLi","threat_type":["injection"],"surprise_field":"new in server"}`
 	cs := harness(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -79,8 +78,8 @@ func TestThreatsGetToleratesUnknownField(t *testing.T) {
 	if !ok || m["id"] != "th-1" {
 		t.Fatalf("result = %v", v)
 	}
-	if m["surprise_field"] != "new in server" {
-		t.Fatalf("surprise_field missing from result: %v", m)
+	if _, ok := m["surprise_field"]; ok {
+		t.Fatalf("surprise_field should be dropped by the typed decode: %v", m)
 	}
 }
 

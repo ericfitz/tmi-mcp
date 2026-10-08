@@ -115,9 +115,11 @@ for `update` actions, each top-level key becomes a JSON Patch `add` at
 
 ### Known client workarounds
 
-- Responses with a field newer than the vendored client's spec (every
-  generated model decodes with `DisallowUnknownFields`) are returned as raw
-  JSON instead of failing the call.
+- Response fields newer than the vendored client's spec are dropped from
+  tool output; the generated client ignores them.
+- Responses with an enum value newer than the vendored client's spec (for
+  example a team status or a diagram node shape) fail the generated client's
+  decode, so they are returned as raw JSON instead of failing the call.
 
 ## Where tokens live
 

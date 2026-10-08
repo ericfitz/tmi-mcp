@@ -113,6 +113,27 @@ func TestProjectsDelete(t *testing.T) {
 	}
 }
 
+// TestTeamsGetToleratesUnknownStatus exercises d.call's rawOnDecodeErr path
+// (see common.go) for a tool other than diagrams: a team status outside the
+// vendored client's TeamStatus enum fails the typed decode. The tool must
+// still succeed and the status must survive in the result.
+func TestTeamsGetToleratesUnknownStatus(t *testing.T) {
+	const teamWithFutureStatusJSON = `{"id":"team-1","name":"Team1","status":"future_status"}`
+	cs := harness(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(teamWithFutureStatusJSON))
+	}))
+
+	v, text, isErr := call(t, cs, "teams", map[string]any{"action": "get", "id": "team-1"})
+	if isErr {
+		t.Fatalf("%s", text)
+	}
+	m, ok := v.(map[string]any)
+	if !ok || m["id"] != "team-1" || m["status"] != "future_status" {
+		t.Fatalf("result = %v", v)
+	}
+}
+
 func TestTeamsGetRequiresID(t *testing.T) {
 	cs := harness(t, http.NotFoundHandler())
 	_, text, isErr := call(t, cs, "teams", map[string]any{"action": "get"})
