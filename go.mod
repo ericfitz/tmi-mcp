@@ -3,7 +3,7 @@ module github.com/ericfitz/tmi-mcp
 go 1.27
 
 require (
-	github.com/ericfitz/tmi-clients/go-client-generated/v3_0_0/v3 v3.0.0-20261122194931-f26c3fed1392
+	github.com/ericfitz/tmi-clients/go-client-generated/v3_0_0/v3 v3.0.0
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/zalando/go-keyring v0.2.8
 	go.yaml.in/yaml/v3 v3.0.5
