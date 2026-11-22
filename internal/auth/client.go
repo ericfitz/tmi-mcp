@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"strings"
 
-	tmi "github.com/ericfitz/tmi-clients/go-client-generated/v2_0_0/v2"
+	tmi "github.com/ericfitz/tmi-clients/go-client-generated/v3_0_0/v3"
 )
 
 // NewAPIClient returns a generated TMI client pointed at server (any trailing

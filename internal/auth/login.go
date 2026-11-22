@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	tmi "github.com/ericfitz/tmi-clients/go-client-generated/v2_0_0/v2"
+	tmi "github.com/ericfitz/tmi-clients/go-client-generated/v3_0_0/v3"
 	"github.com/ericfitz/tmi-mcp/internal/config"
 	"github.com/ericfitz/tmi-mcp/internal/tokenstore"
 )

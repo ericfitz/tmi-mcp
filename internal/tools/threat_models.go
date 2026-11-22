@@ -7,7 +7,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	tmi "github.com/ericfitz/tmi-clients/go-client-generated/v2_0_0/v2"
+	tmi "github.com/ericfitz/tmi-clients/go-client-generated/v3_0_0/v3"
 )
 
 // TMInput is the input for the threat_models tool.
@@ -27,7 +27,7 @@ type TMInput struct {
 func registerThreatModels(s *mcp.Server, d *Deps) {
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "threat_models",
-		Description: "Threat models in TMI. Actions: list (filters: name, owner, status, security_reviewer, limit, offset), get (id), create (fields: name required; description, threat_model_framework, issue_uri, ...), update (id, fields: only the fields to change). There is no delete.",
+		Description: "Threat models in TMI. Actions: list (filters: name, owner, status, security_reviewer, limit, offset), get (id), create (fields: name required; description, threat_model_framework (CIA, STRIDE, LINDDUN, DIE or PLOT4ai; default STRIDE), issue_uri, ...), update (id, fields: only the fields to change). There is no delete.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in TMInput) (*mcp.CallToolResult, any, error) {
 		switch in.Action {
 		case "list":
